@@ -7,7 +7,7 @@ const AREA = { work: 'Arbeit', money: 'Finanzen', health: 'Gesundheit' };
 let DOCS = []; // Metadaten ohne Dateiinhalt
 let docArea = 'work';
 
-const DB = (() => {
+const DB_IDB = (() => {
   let p;
   const open = () => p || (p = new Promise((res, rej) => {
     const r = indexedDB.open('lebenshub-files', 1);
@@ -26,6 +26,13 @@ const DB = (() => {
   return { all: () => tx('readonly', s => s.getAll()), get: id => tx('readonly', s => s.get(id)),
     put: d => tx('readwrite', s => s.put(d)), del: id => tx('readwrite', s => s.delete(id)) };
 })();
+const DB = {
+  all: () => (ART.db ? Promise.resolve(DOCS) : DB_IDB.all()),
+  get: id => (ART.db ? artGetDoc(id) : DB_IDB.get(id)),
+  put: d => (ART.db ? artPutDoc(d) : DB_IDB.put(d)),
+  del: id => (ART.db ? artDelDoc(id) : DB_IDB.del(id))
+};
+const canAnalyze = () => !!(ART.sample || getKey());
 const meta = d => { const m = Object.assign({}, d); delete m.blob; return m; };
 async function loadDocs() { try { DOCS = (await DB.all()).map(meta); } catch (e) { DOCS = []; } }
 
@@ -38,7 +45,7 @@ function docsCard(area) {
   const L = DOCS.filter(d => d.area === area).sort((a, b) => b.added.localeCompare(a.added));
   const rows = L.map(d => `<div class="row"><button class="t" data-act="dopen" data-id="${d.id}">${esc(d.analysis && d.analysis.title ? d.analysis.title : d.name)}<small>${esc(d.name)} · ${H.fdy(d.added)} · ${fsize(d.size)}</small></button>${d.analysis ? '<span class="chip">analysiert</span>' : ''}</div>`).join('')
     || '<div class="empty">Noch keine Dokumente.</div>';
-  return `<section class="card"><h2>Dokumente<small>${L.length}</small></h2><div class="hint">PDFs, Fotos oder Textdateien. Werden nur auf diesem Gerät gespeichert${getKey() ? ' und lassen sich mit Claude analysieren' : ''}.</div>${rows}
+  return `<section class="card"><h2>Dokumente<small>${L.length}</small></h2><div class="hint">PDFs, Fotos oder Textdateien. ${ART.db ? 'Privat bei Claude gespeichert, lesbar für deine Claude-Jobs' : 'Werden nur auf diesem Gerät gespeichert'}${canAnalyze() ? ' – Claude kann sie analysieren' : ''}.</div>${rows}
     <div class="btns"><button class="btn" data-act="dadd" data-v="${area}">+ Dokumente / Fotos</button></div></section>`;
 }
 function keyCard() {
@@ -71,7 +78,7 @@ async function addFiles(files) {
   for (const f0 of files) {
     const f = f0.type.startsWith('image/') || /\.hei[cf]$/i.test(f0.name) ? await normImage(f0) : f0;
     const d = { id: uid(), name: f.name || 'Dokument', type: f.type || '', size: f.size, area: docArea, added: H.today(), blob: f };
-    try { await DB.put(d); DOCS.push(meta(d)); n++; last = d.id; } catch (e) { toast('Speichern fehlgeschlagen: ' + (e.message || e)); }
+    try { await DB.put(d); if (!ART.db) DOCS.push(meta(d)); else DOCS = DOCS.filter(x => x.id !== d.id).concat([Object.assign(meta(d), { id: d.id })]); n++; last = d.id; } catch (e) { toast(e.message || 'Speichern fehlgeschlagen'); }
   }
   render();
   if (n) toast(n === 1 ? 'Dokument gespeichert' : n + ' Dokumente gespeichert');
@@ -94,9 +101,6 @@ async function toBlock(d) {
   throw new Error('Dieses Format kann nicht analysiert werden. Bitte als PDF exportieren oder ein Foto/Screenshot hinzufügen.');
 }
 async function analyzeDoc(d) {
-  const key = getKey();
-  if (!key) throw new Error('Bitte zuerst unter ⚙︎ einen API-Schlüssel hinterlegen.');
-  const block = await toBlock(d);
   const lists = C.filter(c => c.tab === d.area || c.tab === 'today');
   const schema = {
     type: 'object', additionalProperties: false, required: ['title', 'summary', 'facts', 'entries'],
@@ -117,7 +121,18 @@ ${lists.map(c => `  ${c.k} = ${c.title}`).join('\n')}
   Für Kontostände/Depotwerte: Liste „Konten & Depots“, Wert und Stichtag in note. Für Fristen und Termine ein Datum setzen.
 Regeln: Nur übernehmen, was im Dokument steht – nichts erfinden. Datum als JJJJ-MM-TT, sonst leerer String. Keine IBAN, Konto-, Depot-, Versicherungs- oder Kundennummern übernehmen. Leere Listen, wenn nichts passt. Heute ist der ${H.today()}.`;
 
-  const { client, A } = await claude();
+  if (ART.sample) { // über das Claude-Abo
+    const c = await artContent(d);
+    const prompt = system + '\n\nAntworte nur mit einem JSON-Objekt dieser Form: {"title":"…","summary":"…","facts":[{"label":"…","value":"…"}],"entries":[{"list":"' + lists[0].k + '","title":"…","note":"…","date":"JJJJ-MM-TT oder leer"}]}\n\n' +
+      (c.text ? '<dokument name="' + d.name + '">\n' + c.text + '\n</dokument>' : 'Das Dokument „' + d.name + '“ ist als Bild angehängt.');
+    let out;
+    try { out = await ART.sample.json(prompt, Object.assign({ modelTier: 'default', effort: 'medium', cache: false }, c.images ? { images: c.images.slice(0, ART.imgMax) } : {})); }
+    catch (e) { throw new Error(sampleErr(e)); }
+    return finishAnalysis(out, lists);
+  }
+  if (!getKey()) throw new Error('Bitte zuerst unter ⚙︎ einen API-Schlüssel hinterlegen.');
+  const block = await toBlock(d);
+  const { client, A } = await apiClient();
   let res;
   try {
     res = await client.beta.messages.create({
@@ -132,8 +147,14 @@ Regeln: Nur übernehmen, was im Dokument steht – nichts erfinden. Datum als JJ
   if (res.stop_reason === 'refusal') throw new Error('Claude hat die Analyse dieses Dokuments abgelehnt.');
   if (res.stop_reason === 'max_tokens') throw new Error('Die Antwort war zu lang – bitte das Dokument aufteilen.');
   const txt = res.content.filter(b => b.type === 'text').map(b => b.text).join('');
-  const out = JSON.parse(txt);
-  out.entries = (out.entries || []).filter(x => lists.some(c => c.k === x.list)).map(x => Object.assign(x, { date: /^\d{4}-\d{2}-\d{2}$/.test(x.date) ? x.date : '' }));
+  return finishAnalysis(JSON.parse(txt), lists);
+}
+function finishAnalysis(o, lists) {
+  const out = o && typeof o === 'object' ? o : {};
+  out.title = String(out.title || ''); out.summary = String(out.summary || '');
+  out.facts = (Array.isArray(out.facts) ? out.facts : []).map(f => ({ label: String(f.label || ''), value: String(f.value || '') }));
+  out.entries = (Array.isArray(out.entries) ? out.entries : []).filter(x => x && lists.some(c => c.k === x.list))
+    .map(x => ({ list: x.list, title: String(x.title || ''), note: String(x.note || ''), date: /^\d{4}-\d{2}-\d{2}$/.test(x.date || '') ? x.date : '' }));
   out.at = new Date().toISOString();
   return out;
 }
@@ -152,7 +173,7 @@ function baseParams() {
 }
 let sdkP = null;
 function loadSdk() { return sdkP || (sdkP = import(SDK_URL).catch(e => { sdkP = null; throw e; })); }
-async function claude() {
+async function apiClient() {
   const key = getKey();
   if (!key) throw new Error('Bitte zuerst unter ⚙︎ einen API-Schlüssel hinterlegen.');
   const { default: A } = await loadSdk();
@@ -191,20 +212,22 @@ async function openDoc(id) {
       ${a.facts && a.facts.length ? a.facts.map(f => `<div class="kv"><span>${esc(f.label)}</span><span>${esc(f.value)}</span></div>`).join('') : ''}
       ${a.entries && a.entries.length ? `<div class="hint" style="margin-top:6px"><b>Vorschläge für deinen Hub</b> – auswählen und übernehmen:</div>
         ${a.entries.map((e, i) => `<label class="sug"><input type="checkbox" name="e${i}" ${e.done ? 'disabled' : 'checked'}><span>${esc(e.title)}<small>${esc(listName(e.list))}${e.date ? ' · ' + H.fdy(e.date) : ''}${e.note ? ' · ' + esc(e.note) : ''}${e.done ? ' · übernommen' : ''}</small></span></label>`).join('')}` : ''}`
-    : `<div class="hint">${getKey() ? 'Noch nicht analysiert.' : 'Für die Analyse unter ⚙︎ einen API-Schlüssel hinterlegen.'}</div>`;
+    : `<div class="hint">${canAnalyze() ? 'Noch nicht analysiert.' : 'Für die Analyse unter ⚙︎ einen API-Schlüssel hinterlegen.'}</div>`;
   const canApply = a && a.entries && a.entries.some(e => !e.done);
   openDlg(`<h3>${esc(a && a.title ? a.title : d.name)}</h3>
+    ${ART.db && d.assetId ? (/^image\//.test(d.type || '') ? `<img class="preview" src="/_blob/${esc(d.assetId)}" alt="${esc(d.name)}">` : `<a href="/_blob/${esc(d.assetId)}" target="_blank" rel="noopener">Datei öffnen</a>`) : ''}
     <div class="hint">${esc(d.name)} · ${AREA[d.area]} · ${H.fdy(d.added)} · ${fsize(d.size)}</div>
     ${ana}
     <div class="btns">${canApply ? '<button class="btn" value="apply">Ausgewählte übernehmen</button>' : ''}
-      ${getKey() ? `<button class="btn ${canApply ? 'ghost' : ''}" value="analyze" formnovalidate>${a ? 'Neu analysieren' : 'Analysieren'}</button>` : ''}
-      <button class="btn ghost" value="open" formnovalidate>Öffnen</button>
+      ${canAnalyze() ? `<button class="btn ${canApply ? 'ghost' : ''}" value="analyze" formnovalidate>${a ? 'Neu analysieren' : 'Analysieren'}</button>` : ''}
+      ${ART.db ? '' : '<button class="btn ghost" value="open" formnovalidate>Öffnen</button>'}
       <button class="btn warn" value="del" formnovalidate>Löschen</button>
       <button class="btn ghost" value="cancel" formnovalidate>Schließen</button></div>`, async (v, f) => {
     if (v === 'open') return showDoc(d.id);
     if (v === 'del') {
-      if (!confirm('„' + d.name + '“ löschen?')) return;
-      await DB.del(d.id); DOCS = DOCS.filter(x => x.id !== d.id); render(); return toast('Gelöscht');
+      if (!(await askConfirm('„' + d.name + '“ löschen?', 'Löschen'))) return;
+      try { await DB.del(d.id); } catch (e) { return toast(e.message || 'Löschen fehlgeschlagen'); }
+      DOCS = DOCS.filter(x => x.id !== d.id); render(); return toast('Gelöscht');
     }
     if (v === 'apply') {
       let n = 0;
@@ -223,6 +246,7 @@ async function openDoc(id) {
         const full = await DB.get(d.id);
         d.analysis = await analyzeDoc(full);
         await persistMeta(d);
+        DOCS = DOCS.map(x => (x.id === d.id ? Object.assign({}, x, { analysis: d.analysis }) : x));
         render(); openDoc(d.id);
       } catch (e) { toast(e.message || String(e)); } finally { busy(false); }
     }
@@ -250,7 +274,7 @@ function docAct(act, b) {
     if (!/^sk-ant-/.test(v)) { toast('Das sieht nicht nach einem Anthropic-API-Schlüssel aus (beginnt mit „sk-ant-“).'); return true; }
     setKey(v); render(); toast('API-Schlüssel gespeichert'); return true;
   }
-  if (act === 'keydel') { if (confirm('API-Schlüssel von diesem Gerät entfernen?')) { setKey(''); render(); } return true; }
+  if (act === 'keydel') { askConfirm('API-Schlüssel von diesem Gerät entfernen?', 'Entfernen').then(ok => { if (ok) { setKey(''); render(); } }); return true; }
   return false;
 }
 document.addEventListener('change', e => {

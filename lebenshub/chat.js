@@ -144,6 +144,7 @@ function finishTurn(reply, actions, snap, err, cost) {
 async function sendChat(text) {
   text = (text || '').trim();
   if (chatBusy || (!text && !chatFiles.length)) return;
+  if (ART.sample) return sendArt(text);
   if (mode === 'abo') return sendAbo(text);
   const files = chatFiles; chatFiles = []; chatDraft = '';
   CHAT.push({ role: 'user', text, files: files.map(f => f.name), voice: viaVoice, at: Date.now() });
@@ -151,7 +152,7 @@ async function sendChat(text) {
   const snap = JSON.stringify(S), turn = { files: files.map(f => ({ id: uid(), name: f.name, type: f.type || '', size: f.size, added: H.today(), blob: f })), stored: false };
   let reply = '', actions = [], err = false, cost = 0;
   try {
-    const { client, A } = await claude();
+    const { client, A } = await apiClient();
     const content = [];
     for (const f of turn.files) content.push(await toBlock(f));
     content.push({ type: 'text', text: hubSnapshot() + '\n\n' + (text || 'Bitte auswerten und in den Hub übernehmen.') +
@@ -181,6 +182,42 @@ async function sendChat(text) {
   viaVoice = false;
   finishTurn(reply, actions, snap, err, cost);
 }
+
+/* ---------- Im Claude-Artefakt: über das Abo des Nutzers (sample) mit Seiten-Werkzeugen ---------- */
+let chatStream = '', chatCtl = null;
+async function sendArt(text) {
+  const files = chatFiles; chatFiles = []; chatDraft = '';
+  CHAT.push({ role: 'user', text, files: files.map(f => f.name), voice: viaVoice, at: Date.now() });
+  chatBusy = true; chatStream = ''; saveChat(); render(); scrollChat();
+  const snap = JSON.stringify(S), actions = [];
+  const turn = { files: files.map(f => ({ id: uid(), name: f.name, type: f.type || '', size: f.size, added: H.today(), blob: f })), stored: false };
+  let reply = '', err = false;
+  try {
+    let extra = '', images = [];
+    for (const f of turn.files) {
+      try { const c = await artContent(f); if (c.text) extra += '\n<anhang name="' + f.name + '">\n' + c.text + '\n</anhang>'; if (c.images) images = images.concat(c.images); }
+      catch (e) { extra += '\n[Anhang „' + f.name + '“ konnte nicht gelesen werden: ' + e.message + ']'; }
+    }
+    if (images.length) extra += '\n[' + Math.min(images.length, ART.imgMax) + ' Bild(er) angehängt]';
+    const turns = [{ role: 'user', content: SYS + '\nDie Werkzeuge sind Funktionen dieser App; rufe sie direkt auf.' }].concat(history(),
+      [{ role: 'user', content: hubSnapshot() + extra + '\n\n' + (text || 'Bitte auswerten und in den Hub übernehmen.') +
+        (viaVoice || talkMode ? '\n\n(Per Sprache – Antwort wird vorgelesen: höchstens 2 kurze Sätze, keine Aufzählungen.)' : '') }]);
+    chatCtl = new AbortController();
+    const res = await ART.sample(turns, {
+      cache: false, signal: chatCtl.signal, modelTier: pref('tier', 'default'), effort: 'low',
+      ...(images.length && ART.imgMax ? { images: images.slice(0, ART.imgMax) } : {}),
+      tools: tools().map(t => ({ name: t.name, description: t.description, inputSchema: t.input_schema,
+        execute: inp => { const r = runTool(t.name, inp || {}, turn); actions.push(r.label); chatStream = chatStream || '…'; showStream(); return r.result; } })),
+      onText: ({ text: tx }) => { chatStream = tx; showStream(); }
+    });
+    reply = res.text.trim();
+    for (const f of turn.files) { if (!f.area) f.area = 'work'; try { await DB.put(f); } catch (e) { actions.push('⚠︎ ' + f.name + ': ' + e.message); } }
+    if (turn.files.length && !turn.stored) actions.push('📎 ' + turn.files.length + ' Datei(en) unter Arbeit → Dokumente abgelegt');
+  } catch (e) { reply = (e && e.text) || sampleErr(e); err = !(e && e.text); }
+  chatCtl = null; chatStream = ''; viaVoice = false;
+  finishTurn(reply, actions, snap, err, 0);
+}
+function showStream() { const el = $('stream'); if (el) { el.textContent = chatStream || 'Claude denkt nach …'; scrollChat(); } }
 
 /* ---------- Claude-Abo-Modus: Prompt in die Claude-App, Antwort zurück (keine API-Kosten) ---------- */
 const ABO_FORMAT = `Antworte zuerst ganz normal. Wenn etwas in den Lebenshub soll, hänge am Ende GENAU EINEN Codeblock an:
@@ -227,7 +264,7 @@ function parseAbo(t) {
 async function pasteAbo() {
   let t = '';
   try { t = await navigator.clipboard.readText(); } catch (e) { /* iOS fragt ggf. nach */ }
-  if (!t) t = prompt('Antwort von Claude hier einfügen:') || '';
+  if (!t) t = await askText('Antwort von Claude einfügen', 'Hier die kopierte Antwort einfügen …');
   if (!t.trim()) return;
   applyAbo(t);
 }
@@ -265,6 +302,7 @@ function unlockTts() { // iOS: Sprachausgabe muss einmal durch eine Berührung f
   try { const u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); } catch (e) { /* egal */ }
 }
 function speak(t, thenListen) {
+  if (ART.tts) { ART.tts.speak(t.replace(/[*#_`>|]/g, '').slice(0, 1900)).then(() => { if (thenListen && talkMode) setTimeout(listen, 300); }).catch(() => {}); return; }
   try {
     speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(t.replace(/[*#_`>|]/g, '').replace(/\n+/g, '. ').slice(0, 1200));
@@ -273,10 +311,23 @@ function speak(t, thenListen) {
     speechSynthesis.speak(u);
   } catch (e) { if (thenListen && talkMode) listen(); }
 }
+let dictWired = false;
 function listen() {
+  if (ART.dictation) { // Claude-Diktat (Desktop/Chrome)
+    const d = ART.dictation;
+    if (!dictWired) {
+      dictWired = true;
+      d.onFinal(({ text }) => { chatDraft = (chatDraft + text).replace(/^\s+/, ''); const i = $('chatIn'); if (i) i.value = chatDraft; });
+      d.onState(({ state }) => { recog = state === 'idle' ? null : 'dict'; if (state === 'idle') { const t = chatDraft.trim(); render(); if (t) { viaVoice = true; sendChat(t); } else if (talkMode) { talkMode = false; render(); } } else render(); });
+    }
+    if (d.active()) { d.stop(); return; }
+    d.start({ language: 'de' }).catch(e => { if (e && e.code !== 'stopped') { talkMode = false; toast('Diktat nicht möglich – nutze das Mikrofon der Tastatur.'); render(); } });
+    return;
+  }
+  if (ART.on) { talkMode = false; toast('Tipp: Tippe ins Textfeld und nutze das Mikrofon auf der iPhone-Tastatur.'); render(); const i = $('chatIn'); if (i) i.focus(); return; }
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) { talkMode = false; toast('Tipp: Nutze das Mikrofon auf der iPhone-Tastatur zum Diktieren.'); render(); const i = $('chatIn'); if (i) i.focus(); return; }
-  if (recog) { recog.stop(); return; }
+  if (recog && recog !== 'dict') { recog.stop(); return; }
   try { speechSynthesis.cancel(); } catch (e) { /* egal */ }
   recog = new SR(); recog.lang = 'de-DE'; recog.interimResults = true; recog.continuous = false;
   let finalText = '';
@@ -290,6 +341,7 @@ function listen() {
 /* ---------- Ansicht ---------- */
 function fmtText(t) { return esc(t).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>'); }
 function viewChat() {
+  if (ART.sample) return viewChatArt();
   const abo = mode === 'abo';
   if (!abo && !getKey()) return `<section class="card wide"><h2>Assistent</h2>
     <div class="hint">Wähle, wie der Assistent arbeiten soll:</div>
@@ -314,6 +366,24 @@ function viewChat() {
       <button class="icon-btn ${recog ? 'on' : ''}" data-act="cmic" aria-label="Sprechen">🎤</button>
       <button class="btn" data-act="csend" ${chatBusy ? 'disabled' : ''}>${abo ? 'In Claude öffnen' : 'Senden'}</button></div></section>`;
 }
+function msgHtml(m, i) {
+  return `<div class="msg ${m.role}${m.err ? ' err' : ''}">${m.text ? `<div>${fmtText(m.text)}</div>` : ''}${m.files && m.files.length ? `<small>📎 ${m.files.map(esc).join(', ')}</small>` : ''}${m.actions && m.actions.length ? `<ul class="acts">${m.actions.map(a => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}${i === CHAT.length - 1 && undoSnap && !m.undone ? '<button class="chip" data-act="cundo">Rückgängig</button>' : ''}${m.undone ? '<small>rückgängig gemacht</small>' : ''}</div>`;
+}
+function viewChatArt() {
+  const msgs = CHAT.filter(m => !m.local).map((m, i, a) => msgHtml(m, i === a.length - 1 ? CHAT.length - 1 : -1)).join('')
+    || '<div class="hint">Erzähl mir, was ansteht, oder häng ein Foto/PDF an – ich trage alles in deinen Hub ein. Zum Beispiel: „Dienstag 10 Uhr Physio wegen dem Knie“, „Depot steht bei 22.000 €“ oder „Was steht diese Woche an?“ Läuft über dein Claude-Abo.</div>';
+  const voice = ART.dictation || !ART.on;
+  return `<section class="card wide chat"><h2>Assistent<small class="chips">
+      ${ART.dictation ? `<button class="chip ${talkMode ? 'due' : 'd'}" data-act="ctalk">${talkMode ? '🎙 Gespräch läuft' : '🎙 Gespräch'}</button>` : ''}
+      <button class="chip ${speakOn ? '' : 'd'}" data-act="ctts">${speakOn ? '🔊 Vorlesen an' : '🔈 Vorlesen aus'}</button>
+      ${CHAT.length ? '<button class="chip d" data-act="cclear">Leeren</button>' : ''}</small></h2>
+    <div class="msgs" id="msgs">${msgs}${chatBusy ? `<div class="msg assistant"><div class="typing stream" id="stream">${esc(chatStream || 'Claude denkt nach …')}</div><button class="chip d" data-act="cstop">Stopp</button></div>` : ''}${recog ? '<div class="msg user"><div class="typing">Ich höre zu …</div></div>' : ''}</div>
+    ${chatFiles.length ? `<div class="hint">📎 ${chatFiles.map(f => esc(f.name)).join(', ')} <button class="chip d" data-act="cfclear">entfernen</button></div>` : ''}
+    <div class="chatbar"><button class="icon-btn" data-act="cattach" aria-label="Foto oder PDF anhängen">＋</button>
+      <textarea id="chatIn" rows="1" placeholder="Schreiben …" ${chatBusy ? 'disabled' : ''}>${esc(chatDraft)}</textarea>
+      ${voice ? `<button class="icon-btn ${recog ? 'on' : ''}" data-act="cmic" aria-label="Sprechen">🎤</button>` : ''}
+      <button class="btn" data-act="csend" ${chatBusy ? 'disabled' : ''}>Senden</button></div></section>`;
+}
 function scrollChat() { requestAnimationFrame(() => { const m = $('msgs'); if (m) m.scrollTop = m.scrollHeight; }); }
 
 function chatAct(act, b) {
@@ -328,7 +398,8 @@ function chatAct(act, b) {
     case 'cpaste2': TAB = 'chat'; render(); pasteAbo(); return true;
     case 'cmode': mode = b.dataset.v; setPref('mode', mode); render(); return true;
     case 'ctts': unlockTts(); speakOn = !speakOn; setPref('tts', speakOn ? '1' : '0'); if (!speakOn) try { speechSynthesis.cancel(); } catch (e) { /* egal */ } render(); return true;
-    case 'cclear': if (confirm('Chatverlauf löschen? Deine Hub-Daten bleiben erhalten.')) { CHAT = []; undoSnap = null; saveChat(); render(); } return true;
+    case 'cclear': askConfirm('Chatverlauf löschen? Deine Hub-Daten bleiben erhalten.', 'Löschen').then(ok => { if (ok) { CHAT = []; undoSnap = null; saveChat(); render(); } }); return true;
+    case 'cstop': if (chatCtl) chatCtl.abort(); return true;
     case 'cproj': copyText(projectInstructions()).then(ok => toast(ok ? 'Projekt-Anweisung kopiert – in Claude unter Projekt → Anweisungen einfügen.' : 'Kopieren fehlgeschlagen')); return true;
   }
   return false;

@@ -5,7 +5,8 @@
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{background:var(--bg)}
 body{margin:0;color:var(--tx);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
-  padding:calc(env(safe-area-inset-top,0px) + 12px) 16px calc(env(safe-area-inset-bottom,0px) + 84px)}
+  padding-block:calc(env(safe-area-inset-top,0px) + 12px) calc(env(safe-area-inset-bottom,0px) + 84px);padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.art body{padding-top:12px}
 .top{display:flex;justify-content:space-between;align-items:flex-start;max-width:1000px;margin:0 auto 12px}
 h1{font-size:24px;margin:4px 0 2px}.sub{color:var(--mut);margin:0}
 .icon-btn{background:var(--card);border:1px solid var(--bd);color:var(--tx);border-radius:12px;width:42px;height:42px;display:grid;place-items:center;cursor:pointer}
@@ -71,7 +72,7 @@ input[type=password]{flex:1;min-width:0;padding:9px 10px;border-radius:10px;bord
 .chatbar{display:flex;gap:6px;align-items:flex-end;margin-top:8px}
 .chatbar textarea{flex:1;min-height:42px;max-height:120px;resize:none;padding:10px;border-radius:12px;border:1px solid var(--bd);background:var(--bg);color:var(--tx);font:inherit}
 .chatbar .icon-btn{flex:none;font-size:18px}.chatbar .btn{flex:none;height:42px}
-.nav button{font-size:10px}
+.nav button{font-size:10px;min-width:0}.nav button svg{width:21px;height:21px}
 /* iPhone: 16px verhindert das automatische Hineinzoomen beim Tippen */
 input[type=text],input[type=date],input[type=time],input[type=number],input[type=password],select,textarea,.chatbar textarea{font-size:16px}
 button,.nav,.chip{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:manipulation}
@@ -85,3 +86,7 @@ body.kb{padding-bottom:calc(env(safe-area-inset-bottom,0px) + 12px)}
 body.kb .chat .msgs{max-height:calc(100dvh - 200px)}
 .msg .btn{margin-top:8px;display:block}
 .msg small.cost{opacity:.6;font-size:11px}
+.preview{max-width:100%;border-radius:10px;border:1px solid var(--bd)}
+.stream{white-space:pre-wrap}
+.acts{list-style:none;padding-left:0;margin:6px 0 2px;font-size:13px;color:var(--mut)}
+.acts li{padding:2px 0}

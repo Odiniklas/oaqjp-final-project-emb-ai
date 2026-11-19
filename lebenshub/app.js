@@ -11,10 +11,11 @@ const ICON = {
   routines: '<path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/>',
   work: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/>',
   money: '<path d="M18 7.5A6.5 6.5 0 1 0 18 16.5"/><path d="M4 10.5h9M4 13.5h9"/>',
+  files: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
   chat: '<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/>',
   health: '<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8z"/>'
 };
-const TABS = [['today', 'Heute'], ['chat', 'Assistent'], ['routines', 'Routinen'], ['work', 'Arbeit'], ['money', 'Finanzen'], ['health', 'Gesundheit']];
+const TABS = [['today', 'Heute'], ['chat', 'Assistent'], ['routines', 'Routinen'], ['work', 'Arbeit'], ['money', 'Finanzen'], ['health', 'Gesundheit'], ['files', 'Ablage']];
 const BW = ['Entwurf', 'Versandt', 'Termin', 'Stand prüfen', 'Absage'];
 
 /* Listen-Definitionen. Inhalte kommen per Import (Startdaten/Backup) oder werden in der App angelegt. */
@@ -30,9 +31,14 @@ const C = [
   { k: 'g', tab: 'money', title: 'Finanzen im Überblick', hint: 'Eigene Angaben, ohne Gewähr. Wert im Feld „Notiz / Wert“ eintragen.' },
   { k: 'i', tab: 'money', title: 'Startup-Beteiligungen', st: ['Beobachten', 'Prüfen', 'Investiert'] },
   { k: 'p', tab: 'money', title: 'Börse & Portfolio', st: ['Beobachten', 'Prüfen', 'Position'] },
-  { k: 'h', tab: 'health', title: 'Gesundheitsdokumente', date: 1, hint: 'Titel und Fristen, z. B. „Impfpass“ oder „Vorsorge fällig“. Du wirst am Vortag erinnert.' },
+  { k: 'h', tab: 'health', title: 'Gesundheitsdokumente', st: ['Abgelegt', 'Prüfen', 'Fehlt'], date: 1, hint: 'Nur Titel und Fristen, keine Befunde. Du wirst am Vortag erinnert.' },
   { k: 'x', tab: 'health', title: 'Verletzungen & Beschwerden', st: ['Akut', 'In Behandlung', 'Heilt', 'Ausgeheilt'], dn: 1, date: 1, hint: 'Was, seit wann, Behandlung/Arzt als Notiz. Datum = nächster Termin.' },
-  { k: 'v', tab: 'health', title: 'Versicherungen', date: 1, hint: 'Name und Fälligkeit/Kündigungsfrist. Policen-Nr. nicht nötig.' }
+  { k: 'v', tab: 'health', title: 'Versicherungen', st: ['Aktiv', 'Angebot', 'Prüfen'], date: 1, hint: 'Fälligkeit/Kündigungsfrist als Datum. Keine Policen-Nummern.' },
+  { k: 'dw', tab: 'files', title: 'Wohnung', st: ['Abgelegt', 'Prüfen', 'Fehlt'], hint: 'Übersicht deiner Unterlagen: abgelegt, zu prüfen oder fehlend.' },
+  { k: 'dm', tab: 'files', title: 'Mobilität', st: ['Abgelegt', 'Prüfen', 'Fehlt'] },
+  { k: 'dp', tab: 'files', title: 'Projekte & Forschung', st: ['Abgelegt', 'Prüfen', 'Fehlt'] },
+  { k: 'dj', tab: 'files', title: 'Jobs, Bildung & Fortbildung', st: ['Abgelegt', 'Prüfen', 'Fehlt'] },
+  { k: 'ds', tab: 'files', title: 'Sport, Trainer & Archiv', st: ['Abgelegt', 'Prüfen', 'Fehlt'] }
 ];
 
 function seed() {
@@ -49,7 +55,8 @@ C.forEach(c => { if (!S.lists[c.k]) S.lists[c.k] = []; });
 try { TAB = sessionStorage.getItem(K + '-tab') || 'today'; } catch (e) { /* egal */ }
 
 function save(msg) {
-  try { localStorage.setItem(K, JSON.stringify(S)); } catch (e) { toast('Speichern fehlgeschlagen'); }
+  try { localStorage.setItem(K, JSON.stringify(S)); } catch (e) { if (!ART.db) toast('Speichern fehlgeschlagen'); }
+  if (typeof artSave === 'function') artSave();
   render();
   syncData().then(checkNotify);
   if (msg) toast(msg);
@@ -109,6 +116,7 @@ function listCard(c, opts) {
 function isEmpty() { return !S.routines.length && C.every(c => !S.lists[c.k].length); }
 function viewToday() {
   const t = H.today();
+  if (ART.db && !ART.ready && isEmpty()) return `<section class="card wide"><h2>Lebenshub wird geladen …</h2><div class="hint">Deine Daten kommen von Claude. Das dauert meist nur einen Moment.</div></section>`;
   if (isEmpty()) return `<section class="card wide"><h2>Willkommen im Lebenshub</h2><div class="hint">Hast du eine Startdatei oder ein Backup (<b>.json</b>)? Dann importiere sie hier – auf dem iPhone liegt sie z. B. in der Dateien-App. Sonst leg einfach los und füge Routinen und Einträge selbst hinzu.</div><div class="btns"><button class="btn" data-act="import">Startdaten importieren</button><button class="btn ghost" data-act="tab" data-v="routines">Erste Routine anlegen</button></div></section>`;
   const due = dueRoutines(t).sort((a, b) => (a.time || S.settings.defTime).localeCompare(b.time || S.settings.defTime));
   const doneT = S.routines.filter(r => r.last === t && !H.state(r, t).due);
@@ -118,6 +126,7 @@ function viewToday() {
     ${due.map(r => routineRow(r, t)).join('')}${doneT.map(r => routineRow(r, t)).join('')}
     ${!total ? '<div class="empty">Heute stehen keine Routinen an.</div>' : !due.length ? '<div class="empty">Alles erledigt. Gute Arbeit!</div>' : ''}</section>`;
 
+  h += typeof jobLogCard === 'function' ? jobLogCard() : '';
   // Demnächst: Datums-Einträge aller Listen + Routinen der nächsten 7 Tage
   const until = H.add(t, 14), up = [];
   C.forEach(c => S.lists[c.k].forEach(it => {
@@ -132,7 +141,7 @@ function viewToday() {
   up.sort((a, b) => a.d.localeCompare(b.d));
   h += `<section class="card"><h2>Demnächst<small>14 Tage</small></h2>${up.map(x => `<div class="row"><button class="t" data-act="${x.rid ? 'redit' : 'iedit'}" data-id="${x.rid || x.id}" data-k="${x.k || ''}">${esc(x.n)}<small>${esc(x.sub)}</small></button><span class="chip ${x.d <= t ? 'due' : 'd'}">${rel(x.d, t)}</span></div>`).join('') || '<div class="empty">Nichts geplant.</div>'}</section>`;
   h += C.filter(c => c.tab === 'today').map(c => listCard(c)).join('');
-  if (!S.settings.notify) h += `<section class="card wide"><h2>Erinnerungen einschalten</h2><div class="hint">Lass dich benachrichtigen, wenn eine Routine fällig ist oder ein Termin ansteht.</div><div class="btns"><button class="btn" data-act="notifon">Benachrichtigungen aktivieren</button><button class="btn ghost" data-act="tab" data-v="settings">Mehr Optionen</button></div></section>`;
+  if (!S.settings.notify && !ART.on) h += `<section class="card wide"><h2>Erinnerungen einschalten</h2><div class="hint">Lass dich benachrichtigen, wenn eine Routine fällig ist oder ein Termin ansteht.</div><div class="btns"><button class="btn" data-act="notifon">Benachrichtigungen aktivieren</button><button class="btn ghost" data-act="tab" data-v="settings">Mehr Optionen</button></div></section>`;
   return h;
 }
 
@@ -160,6 +169,12 @@ function viewSettings() {
   const permTxt = { granted: 'erlaubt', denied: 'blockiert (in den Browser-/Systemeinstellungen freigeben)', default: 'noch nicht gefragt', unsupported: 'von diesem Browser nicht unterstützt' }[perm];
   const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
   const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  if (ART.on) return `${artSettingsCard()}
+  <section class="card"><h2>Kalender-Erinnerungen</h2><div class="hint">Exportiert alle Routinen als wiederkehrende Termine (mit Alarm) und alle datierten Einträge als Ganztagstermine (Alarm am Vortag). In den iPhone-Kalender übernehmen – dann wirst du immer erinnert. Nach Änderungen neu exportieren.</div><div class="btns"><button class="btn" data-act="ics">Kalenderdatei (.ics) speichern</button></div></section>
+  <section class="card"><h2>Design</h2><label class="f">Darstellung<select id="theme"><option value="auto">Automatisch</option><option value="light">Hell</option><option value="dark">Dunkel</option></select></label></section>
+  <section class="card"><h2>Daten</h2><div class="hint">Dein Hub ist privat und nur für dich sichtbar. Backups enthalten Listen und Routinen, keine Dokumente.</div>
+    <div class="btns"><button class="btn" data-act="export">Backup speichern</button><button class="btn ghost" data-act="import">Backup/Startdatei importieren</button></div>
+    <div class="btns"><button class="btn warn" data-act="reset">Alle Daten löschen</button></div></section>`;
   return `<section class="card"><h2>Erinnerungen</h2>
     <div class="kv"><span>Status</span><span>${s.notify && perm === 'granted' ? 'aktiv' : 'aus'}</span></div>
     <div class="kv"><span>Berechtigung</span><span>${permTxt}</span></div>
@@ -188,7 +203,7 @@ function render() {
   else if (TAB === 'routines') h = viewRoutines();
   else if (TAB === 'settings') h = viewSettings();
   else if (TAB === 'chat') h = typeof viewChat === 'function' ? viewChat() : '';
-  else h = C.filter(c => c.tab === TAB).map(c => listCard(c)).join('') + (typeof docsCard === 'function' ? docsCard(TAB) : '');
+  else h = C.filter(c => c.tab === TAB).map(c => listCard(c)).join('') + (typeof docsCard === 'function' && TAB !== 'files' ? docsCard(TAB) : '');
   $('body').innerHTML = h;
   if (TAB === 'chat' && typeof scrollChat === 'function') scrollChat();
   if (TAB === 'settings') $('theme').value = S.settings.theme;
@@ -197,10 +212,18 @@ function render() {
 }
 
 /* ---------- Dialoge ---------- */
-function openDlg(html, onSubmit) {
+let dlgCancel = null;
+function openDlg(html, onSubmit, onCancel) {
   const f = $('dlgf');
   f.innerHTML = html;
-  f.onsubmit = e => { e.preventDefault(); const v = e.submitter ? e.submitter.value : 'save'; if (v !== 'cancel') onSubmit(v, f); $('dlg').close(); };
+  dlgCancel = onCancel || null;
+  f.onsubmit = e => {
+    e.preventDefault();
+    const v = e.submitter ? e.submitter.value : 'save', c = dlgCancel;
+    dlgCancel = null;
+    $('dlg').close();
+    if (v !== 'cancel') onSubmit(v, f); else if (c) c();
+  };
   $('dlg').showModal();
 }
 const dlgBtns = del => `<div class="btns"><button class="btn" value="save">Speichern</button>${del ? '<button class="btn warn" value="del" formnovalidate>Löschen</button>' : ''}<button class="btn ghost" value="cancel" formnovalidate>Abbrechen</button></div>`;
@@ -214,7 +237,7 @@ function editItem(k, id) {
     <div class="f2"><label class="f">Datum / Frist<input type="date" name="d" value="${esc(it.d)}"></label>
     ${c.st ? `<label class="f">Status<select name="s">${c.st.map((s, i) => `<option value="${i}" ${i === it.s ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select></label>` : ''}</div>
     ${dlgBtns(true)}`, (v, f) => {
-    if (v === 'del') { if (!confirm('„' + it.n + '“ löschen?')) return; S.lists[k] = S.lists[k].filter(x => x.id !== id); return save('Gelöscht'); }
+    if (v === 'del') { askConfirm('„' + it.n + '“ löschen?', 'Löschen').then(ok => { if (ok) { S.lists[k] = S.lists[k].filter(x => x.id !== id); save('Gelöscht'); } }); return; }
     it.n = f.n.value.trim() || it.n; it.t = f.t.value.trim(); it.d = f.d.value;
     if (c.st) it.s = +f.s.value;
     save('Gespeichert');
@@ -238,7 +261,7 @@ function editRoutine(id, freq) {
     <label class="f">Start ab<input type="date" name="start" value="${esc(r.start)}" required></label>
     ${hist ? `<div class="hint">Zuletzt erledigt: ${hist}</div>` : ''}
     ${dlgBtns(!isNew)}`, (v, f) => {
-    if (v === 'del') { if (!confirm('Routine „' + r.n + '“ löschen?')) return; S.routines = S.routines.filter(x => x.id !== r.id); return save('Gelöscht'); }
+    if (v === 'del') { askConfirm('Routine „' + r.n + '“ löschen?', 'Löschen').then(ok => { if (ok) { S.routines = S.routines.filter(x => x.id !== r.id); save('Gelöscht'); } }); return; }
     Object.assign(r, { n: f.n.value.trim(), note: f.note.value.trim(), freq: f.freq.value, every: Math.max(1, +f.every.value || 1), wd: +f.wd.value, md: +f.md.value, time: f.time.value, start: f.start.value || H.today() });
     if (isNew) S.routines.push(r);
     save(isNew ? 'Routine angelegt' : 'Gespeichert');
@@ -295,6 +318,8 @@ async function notifTest() {
 
 /* ---------- Export ---------- */
 function download(name, type, text) {
+  if (ART.downloads) return artDownload(name, type, text);
+  if (ART.on) return toast('Speichern ist hier nicht möglich.');
   const file = new File([text], name, { type });
   if (navigator.canShare && navigator.canShare({ files: [file] }) && /iphone|ipad|android/i.test(navigator.userAgent)) {
     navigator.share({ files: [file], title: name }).catch(() => {});
@@ -385,7 +410,7 @@ document.addEventListener('click', e => {
     case 'ics': download('lebenshub.ics', 'text/calendar', icsText()); break;
     case 'export': download('lebenshub-backup-' + t + '.json', 'application/json', JSON.stringify(S, null, 1)); break;
     case 'import': $('importFile').click(); break;
-    case 'reset': if (confirm('Wirklich alle Daten auf diesem Gerät löschen? Mach vorher ein Backup.')) { const st = S.settings; S = seed(); S.settings = st; save('Zurückgesetzt'); } break;
+    case 'reset': askConfirm(ART.db ? 'Wirklich alle Hub-Daten löschen – auf allen Geräten? Mach vorher ein Backup.' : 'Wirklich alle Daten auf diesem Gerät löschen? Mach vorher ein Backup.', 'Alles löschen').then(ok => { if (ok) { const st = S.settings; S = seed(); S.settings = st; save('Zurückgesetzt'); } }); break;
     default: if (typeof docAct === 'function' && docAct(act, b)) break; if (typeof chatAct === 'function') chatAct(act, b); break;
     case 'install': if (installEvt) { installEvt.prompt(); installEvt.userChoice.finally(() => { installEvt = null; render(); }); } break;
   }
@@ -407,6 +432,7 @@ document.addEventListener('change', e => {
   if (e.target.id === 'importFile' && e.target.files[0]) { importBackup(e.target.files[0]); e.target.value = ''; }
 });
 $('dlg').addEventListener('click', e => { if (e.target === $('dlg')) $('dlg').close(); });
+$('dlg').addEventListener('close', () => { const c = dlgCancel; dlgCancel = null; if (c) c(); });
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; if (TAB === 'settings') render(); });
 
 let lastDay = H.today();
@@ -415,8 +441,9 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) { re
 setInterval(tick, 60 * 1000);
 
 render();
+if (typeof artInit === 'function') artInit();
 if (typeof loadDocs === 'function') loadDocs().then(render);
-if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+if ('serviceWorker' in navigator && location.protocol !== 'file:' && !window.claude) {
   const hadSw = !!navigator.serviceWorker.controller;
   navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadSw) toast('Update geladen – App einmal schließen und neu öffnen.'); });
   navigator.serviceWorker.register('sw.js').then(() => syncData()).then(checkNotify).catch(() => {});

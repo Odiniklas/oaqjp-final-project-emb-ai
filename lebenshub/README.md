@@ -17,7 +17,14 @@ Installierbare Web-App (PWA). Läuft offline, alle Daten bleiben lokal auf dem G
 - **Kalender-Export (.ics)**: Routinen als wiederkehrende Termine mit Alarm, damit das Handy auch bei geschlossener App erinnert
 - **Backup**: Export/Import als JSON (auch für den Umzug auf ein anderes Gerät)
 
-## Starten / Installieren
+## Betrieb als Claude-Artefakt (empfohlen)
+Dieselbe App läuft auch als Claude-Artefakt (`python3 tools/build_artifact.py out.html` baut die einzelne Seite). Dort:
+- Daten privat in der Artefakt-Datenbank (`hub/state`, Dokumente unter `docs/*` mit Dateien als Assets) – auf allen Geräten gleich
+- Assistent und Dokument-Analyse über das Claude-Abo (Capability `sample`), ohne API-Schlüssel
+- Geplante Claude-Jobs schreiben Ergebnisse in die Sammelbox `inbox/<id>` als `{source, at, summary, actions:[{tool, …}]}` (Werkzeuge wie beim Assistenten: add_entry, update_entry, delete_entry, add_routine, complete_routine, delete_routine); die App übernimmt sie beim Öffnen automatisch und zeigt sie unter „Von deinen Claude-Jobs“
+- Bereich „Ablage“ für die Übersicht der Unterlagen
+
+## Starten / Installieren (eigene Web-App)
 Die App muss über HTTPS ausgeliefert werden (für Offline-Betrieb und Benachrichtigungen), z. B.:
 - **Netlify Drop** (https://app.netlify.com/drop): den Ordner `lebenshub` hineinziehen, fertig
 - **GitHub Pages**: Repository-Einstellungen → Pages → Branch wählen, dann `…/lebenshub/` öffnen
