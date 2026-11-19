@@ -26,7 +26,7 @@ const C = [
   { k: 'b', tab: 'work', title: 'Bewerbungen', st: BW },
   { k: 'a', tab: 'work', title: 'Eigene Arbeit', st: ['Läuft', 'Geplant', 'Fertig'] },
   { k: 'u', tab: 'work', title: 'Startups & Ideen', st: ['Idee', 'Validierung', 'Zurückgestellt'] },
-  { k: 'k', tab: 'money', title: 'Konten & Depots', date: 1, hint: 'Konto/Depot mit Stand im Feld „Notiz / Wert“, Datum = Stichtag. Keine IBAN oder Kontonummern.' },
+  { k: 'k', tab: 'money', hideEmpty: 1, title: 'Weitere Konten (Notizen)', date: 1, hint: 'Konto/Depot mit Stand im Feld „Notiz / Wert“, Datum = Stichtag. Keine IBAN oder Kontonummern.' },
   { k: 'z', tab: 'money', title: 'Fixkosten & Abos', date: 1, hint: 'Betrag und Rhythmus als Notiz, Datum = nächste Fälligkeit oder Kündigungsfrist.' },
   { k: 'g', tab: 'money', title: 'Finanzen im Überblick', hint: 'Eigene Angaben, ohne Gewähr. Wert im Feld „Notiz / Wert“ eintragen.' },
   { k: 'i', tab: 'money', title: 'Startup-Beteiligungen', st: ['Beobachten', 'Prüfen', 'Investiert'] },
@@ -77,6 +77,25 @@ function toast(m) { const el = $('toast'); el.textContent = m; el.hidden = false
 function dueRoutines(t) { return S.routines.filter(r => H.state(r, t).due); }
 
 /* ---------- Bausteine ---------- */
+function stClass(s) {
+  return /^(Fehlt|Absage|Akut)$/.test(s) ? 'bad' : /^(Prüfen|Stand prüfen|Angebot|In Behandlung|Validierung|Im Gespräch|Termin)$/.test(s) ? 'warn'
+    : /^(Abgelegt|Aktiv|Erledigt|Zusage|Position|Fertig|Ausgeheilt|Investiert)$/.test(s) ? 'good' : '';
+}
+/* Suche über den ganzen Hub */
+let HUBQ = '';
+function searchCard() {
+  const q = HUBQ.trim().toLowerCase();
+  let res = '';
+  if (q.length > 1) {
+    const hits = [];
+    C.forEach(c => S.lists[c.k].forEach(it => { if ((it.n + ' ' + (it.t || '')).toLowerCase().includes(q)) hits.push(`<div class="row"><button class="t" data-act="iedit" data-k="${c.k}" data-id="${it.id}">${esc(it.n)}<small>${esc(c.title)}${it.t ? ' · ' + esc(it.t) : ''}</small></button>${c.st ? `<span class="chip ${stClass(c.st[it.s])}">${esc(c.st[it.s])}</span>` : ''}</div>`); }));
+    S.routines.forEach(r => { if (r.n.toLowerCase().includes(q)) hits.push(`<div class="row"><button class="t" data-act="redit" data-id="${r.id}">${esc(r.n)}<small>Routine · ${esc(H.freqLabel(r))}</small></button></div>`); });
+    (typeof DOCS !== 'undefined' ? DOCS : []).forEach(d => { const tt = (d.analysis && d.analysis.title) || d.name; if ((tt + ' ' + d.name).toLowerCase().includes(q)) hits.push(`<div class="row"><button class="t" data-act="dopen" data-id="${d.id}">${esc(tt)}<small>Dokument</small></button></div>`); });
+    if (S.fin) S.fin.positions.forEach(p => { if ((p.name + ' ' + (p.isin || '')).toLowerCase().includes(q)) hits.push(`<div class="row"><button class="t" data-act="fpos" data-id="${p.id}">${esc(p.name)}<small>Depot-Position</small></button></div>`); });
+    res = hits.slice(0, 30).join('') || '<div class="empty">Nichts gefunden.</div>';
+  }
+  return `<section class="card wide search"><input type="search" id="hubq" placeholder="Im Hub suchen …" value="${esc(HUBQ)}" autocomplete="off" enterkeyhint="search">${res}</section>`;
+}
 function routineRow(r, t) {
   const st = H.state(r, t);
   let btn, chip;
@@ -105,7 +124,7 @@ function listCard(c, opts) {
     const done = isDone(c, it);
     const late = it.d && it.d < t && !done;
     const date = it.d ? `<span class="chip ${late || it.d === t ? 'due' : 'd'}">${rel(it.d, t)}</span>` : '';
-    const st = c.st ? `<button class="chip" data-act="cycle" data-k="${c.k}" data-id="${it.id}">${esc(c.st[it.s] || c.st[0])}</button>` : '';
+    const st = c.st ? `<button class="chip ${stClass(c.st[it.s] || c.st[0])}" data-act="cycle" data-k="${c.k}" data-id="${it.id}">${esc(c.st[it.s] || c.st[0])}</button>` : '';
     return `<div class="row ${done ? 'done' : ''}"><button class="t" data-act="iedit" data-k="${c.k}" data-id="${it.id}">${esc(it.n)}${it.t ? `<small>${esc(it.t)}</small>` : ''}</button>${date}${st}</div>`;
   }).join('') || '<div class="empty">Noch leer.</div>';
   return `<section class="card ${o.wide ? 'wide' : ''}"><h2>${c.title}<small>${c.dn ? L.filter(x => !isDone(c, x)).length + ' offen' : L.length}</small></h2>${c.hint ? `<div class="hint">${c.hint}</div>` : ''}${rows}
@@ -122,7 +141,7 @@ function viewToday() {
   const doneT = S.routines.filter(r => r.last === t && !H.state(r, t).due);
   const total = due.length + doneT.length;
   const pct = total ? Math.round(doneT.length / total * 100) : 100;
-  let h = `<section class="card wide"><h2>Heute zu tun<small>${doneT.length} von ${total} erledigt</small></h2><div class="bar"><i style="width:${pct}%"></i></div>
+  let h = searchCard() + `<section class="card wide"><h2>Heute zu tun<small>${doneT.length} von ${total} erledigt</small></h2><div class="bar"><i style="width:${pct}%"></i></div>
     ${due.map(r => routineRow(r, t)).join('')}${doneT.map(r => routineRow(r, t)).join('')}
     ${!total ? '<div class="empty">Heute stehen keine Routinen an.</div>' : !due.length ? '<div class="empty">Alles erledigt. Gute Arbeit!</div>' : ''}</section>`;
 
@@ -203,7 +222,7 @@ function render() {
   else if (TAB === 'routines') h = viewRoutines();
   else if (TAB === 'settings') h = viewSettings();
   else if (TAB === 'chat') h = typeof viewChat === 'function' ? viewChat() : '';
-  else h = C.filter(c => c.tab === TAB).map(c => listCard(c)).join('') + (typeof docsCard === 'function' && TAB !== 'files' ? docsCard(TAB) : '');
+  else h = (TAB === 'money' && typeof finView === 'function' ? finView() : '') + C.filter(c => c.tab === TAB && !(c.hideEmpty && !S.lists[c.k].length)).map(c => listCard(c)).join('') + (typeof docsCard === 'function' && TAB !== 'files' ? docsCard(TAB) : '');
   $('body').innerHTML = h;
   if (TAB === 'chat' && typeof scrollChat === 'function') scrollChat();
   if (TAB === 'settings') $('theme').value = S.settings.theme;
@@ -411,7 +430,7 @@ document.addEventListener('click', e => {
     case 'export': download('lebenshub-backup-' + t + '.json', 'application/json', JSON.stringify(S, null, 1)); break;
     case 'import': $('importFile').click(); break;
     case 'reset': askConfirm(ART.db ? 'Wirklich alle Hub-Daten löschen – auf allen Geräten? Mach vorher ein Backup.' : 'Wirklich alle Daten auf diesem Gerät löschen? Mach vorher ein Backup.', 'Alles löschen').then(ok => { if (ok) { const st = S.settings; S = seed(); S.settings = st; save('Zurückgesetzt'); } }); break;
-    default: if (typeof docAct === 'function' && docAct(act, b)) break; if (typeof chatAct === 'function') chatAct(act, b); break;
+    default: if (typeof finAct === 'function' && finAct(act, b)) break; if (typeof docAct === 'function' && docAct(act, b)) break; if (typeof chatAct === 'function') chatAct(act, b); break;
     case 'install': if (installEvt) { installEvt.prompt(); installEvt.userChoice.finally(() => { installEvt = null; render(); }); } break;
   }
 });
@@ -426,6 +445,11 @@ function addItem(k) {
 document.addEventListener('focusin', e => { if (e.target.matches('input[type=text],input[type=password],textarea')) document.body.classList.add('kb'); });
 document.addEventListener('focusout', () => setTimeout(() => { if (!document.activeElement || !document.activeElement.matches('input,textarea')) document.body.classList.remove('kb'); }, 50));
 document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.dataset && e.target.dataset.add) { e.preventDefault(); addItem(e.target.dataset.add); } });
+document.addEventListener('input', e => {
+  if (e.target.id !== 'hubq') return;
+  HUBQ = e.target.value; const pos = e.target.selectionStart; render();
+  const i = $('hubq'); if (i) { i.focus(); try { i.setSelectionRange(pos, pos); } catch (er) { /* egal */ } }
+});
 document.addEventListener('change', e => {
   if (e.target.id === 'defTime') { S.settings.defTime = e.target.value || '08:00'; save('Gespeichert'); }
   if (e.target.id === 'theme') { S.settings.theme = e.target.value; save(); }

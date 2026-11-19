@@ -17,7 +17,7 @@ const SYS = `Du bist der persönliche Assistent im „Lebenshub“ (Termine, Rou
 - Neues mit add_entry in die passende Liste; Vorhandenes mit update_entry aktualisieren statt doppelt anlegen (IDs aus den Hub-Daten).
 - Wiederkehrendes als Routine (add_routine), Erledigtes abhaken (complete_routine bzw. Status per update_entry).
 - Angehängte Dateien: auswerten, mit store_attachment im passenden Bereich ablegen, relevante Fakten als Einträge übernehmen.
-- Kontostände/Depotwerte in Liste k, Wert und Stichtag in note, Datum = Stichtag.
+- Konten, Depots, Wertpapiere und Kurse mit set_account / set_position / set_prices (Beträge in EUR, Stichtag angeben).
 - Nichts erfinden. Datum als JJJJ-MM-TT. Keine IBAN, Konto-, Depot-, Versicherungs- oder Kundennummern speichern.
 - Nur bei echter Mehrdeutigkeit kurz nachfragen.
 Danach in 1–2 Sätzen sagen, was du geändert hast; wenn sinnvoll ein konkreter nächster Schritt. Fragen zum Hub aus den Hub-Daten beantworten. Keine Anlage-, Rechts- oder medizinische Beratung im engeren Sinn; bei gesundheitlichen Warnzeichen zum Arzt raten.`;
@@ -46,7 +46,7 @@ function tools() {
     { name: 'store_attachment', description: 'Angehängte Dateien dieser Nachricht unter „Dokumente“ ablegen.',
       input_schema: { type: 'object', additionalProperties: false, required: ['area', 'title', 'summary'], properties: {
         area: { type: 'string', enum: ['work', 'money', 'health'] }, title: str('Titel'), summary: str('2–4 Sätze') } } }
-  ];
+  ].concat(typeof FIN_TOOLS !== 'undefined' ? FIN_TOOLS : []);
 }
 
 /* Kompakte Hub-Daten (kurze Schlüssel = weniger Tokens) */
@@ -59,10 +59,13 @@ function hubSnapshot() {
   });
   const r = S.routines.map(x => { const st = H.state(x, t); return [x.id, x.n, H.freqLabel(x) + (x.time ? ' ' + x.time : ''), st.due ? 'fällig' : 'nächste ' + (st.next || '-')]; });
   return `<hub heute="${t} ${H.WDL[H.P(t).getUTCDay()]}">\nFormat Listeneintrag: [id, titel, notiz, datum, status]; Routine: [id, titel, rhythmus, zustand]\n` +
-    JSON.stringify({ listen: lists, routinen: r, dokumente: DOCS.map(d => (d.analysis && d.analysis.title) || d.name) }) + '\n</hub>';
+    JSON.stringify({ listen: lists, routinen: r, dokumente: DOCS.map(d => (d.analysis && d.analysis.title) || d.name) }) +
+    '\nFinanzen [Konto, Art, Guthaben, Stichtag] / [Konto, Wertpapier, ISIN, Stück, Einstand, Kurs, Kursdatum]: ' + (typeof finSnapshotText === 'function' ? finSnapshotText() : '') + '\n</hub>';
 }
 
 function runTool(name, x, turn) {
+  const fr = typeof finTool === 'function' ? finTool(name, x || {}) : null;
+  if (fr) return fr;
   const L = k => { if (!S.lists[k]) throw new Error('Unbekannte Liste ' + k); return S.lists[k]; };
   const stIdx = (k, s) => { const c = C.find(y => y.k === k); if (!c.st || !s) return 0; const i = c.st.findIndex(v => v.toLowerCase() === String(s).toLowerCase()); return i < 0 ? 0 : i; };
   const date = d => (/^\d{4}-\d{2}-\d{2}$/.test(d || '') ? d : '');
@@ -224,7 +227,7 @@ const ABO_FORMAT = `Antworte zuerst ganz normal. Wenn etwas in den Lebenshub sol
 \`\`\`lebenshub
 {"actions":[{"tool":"add_entry","list":"x","title":"…","note":"…","date":"JJJJ-MM-TT","status":"…"}]}
 \`\`\`
-Werkzeuge: add_entry(list,title,note?,date?,status?), update_entry(list,id,title?,note?,date?,status?), delete_entry(list,id), add_routine(title,freq=daily|weekly|monthly,every?,weekday 0=So..6=Sa?,monthday?,time HH:MM?, note?), complete_routine(id), delete_routine(id).
+Werkzeuge: add_entry(list,title,note?,date?,status?), update_entry(list,id,title?,note?,date?,status?), delete_entry(list,id), add_routine(title,freq=daily|weekly|monthly,every?,weekday 0=So..6=Sa?,monthday?,time HH:MM?, note?), complete_routine(id), delete_routine(id), set_account(name, kind=Depot|Girokonto|Tagesgeld|Verrechnungskonto, broker?, cash? in EUR, asOf?), set_position(account, name, isin?, qty?, buyPrice?, price? in EUR, priceDate?), set_prices(prices:[{name|isin, price in EUR, date}]), remove_position(account, name).
 Listen: ${'${LISTEN}'}
 Regeln: nichts erfinden, Datum JJJJ-MM-TT, keine IBAN/Konto-/Kunden-/Versicherungsnummern, vorhandene Einträge per update_entry mit ihrer id ändern statt doppelt anlegen.`;
 function aboFormat() { return ABO_FORMAT.replace('${LISTEN}', C.map(c => c.k + '=' + c.title + (c.st ? ' (Status: ' + c.st.join('/') + ')' : '')).join(', ')); }
