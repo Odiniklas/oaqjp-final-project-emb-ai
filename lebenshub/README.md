@@ -1,0 +1,26 @@
+# Lebenshub – App
+
+Installierbare Web-App (PWA). Läuft offline, alle Daten bleiben lokal auf dem Gerät. Der Code enthält keine persönlichen Daten – Inhalte kommen per Import einer Startdatei/eines Backups (.json) oder werden in der App angelegt.
+
+## Funktionen
+- **Heute**: fällige Routinen zum Abhaken mit Fortschritt, „Demnächst“ (14 Tage), Termine, nächste Schritte
+- **Geplante Claude-Aufgaben**: Routinen können als Claude-Aufgabe markiert sein (Laufzeit, Ergebnis, nächster Lauf); die App erinnert danach ans Auswerten
+- **Routinen**: täglich / wöchentlich / monatlich, auch „alle N Tage/Wochen/Monate“, mit Uhrzeit; nach dem Abhaken kommen sie zum nächsten Termin automatisch wieder, verpasste bleiben als „überfällig“ stehen
+- **Arbeit, Finanzen, Gesundheit**: alle Listen aus dem Artefakt; Einträge antippen zum Bearbeiten (Titel, Notiz/Wert, Datum, Status)
+- **Erinnerungen**: Push-Benachrichtigungen für fällige Routinen und Termine (heute/morgen), App-Badge mit Anzahl offener Routinen
+- **Kalender-Export (.ics)**: Routinen als wiederkehrende Termine mit Alarm, damit das Handy auch bei geschlossener App erinnert
+- **Backup**: Export/Import als JSON (auch für den Umzug auf ein anderes Gerät)
+
+## Starten / Installieren
+Die App muss über HTTPS ausgeliefert werden (für Offline-Betrieb und Benachrichtigungen), z. B.:
+- **Netlify Drop** (https://app.netlify.com/drop): den Ordner `lebenshub` hineinziehen, fertig
+- **GitHub Pages**: Repository-Einstellungen → Pages → Branch wählen, dann `…/lebenshub/` öffnen
+
+Lokal testen: `cd lebenshub && python3 -m http.server 8000` → http://localhost:8000
+
+Dann auf dem Handy:
+- **iPhone**: in Safari öffnen → Teilen → „Zum Home-Bildschirm“. Danach in der App ⚙︎ → „Aktivieren“ (Benachrichtigungen ab iOS 16.4).
+- **Android**: in Chrome öffnen → „App installieren“.
+
+## Dateien
+`index.html`, `styles.css`, `app.js` (Oberfläche), `sched.js` (Terminlogik), `sw.js` (Offline + Hintergrund-Erinnerungen), `manifest.webmanifest`, Icons.
