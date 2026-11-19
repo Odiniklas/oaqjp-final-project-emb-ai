@@ -166,6 +166,7 @@ function viewSettings() {
     <label class="f" style="margin-top:8px">Standard-Uhrzeit (Routinen ohne Uhrzeit, Termin-Hinweise)<input type="time" id="defTime" value="${esc(s.defTime)}"></label>
     <div class="btns">${s.notify ? '<button class="btn ghost" data-act="notifoff">Ausschalten</button><button class="btn ghost" data-act="notiftest">Test senden</button>' : '<button class="btn" data-act="notifon">Aktivieren</button>'}</div>
     <div class="hint" style="margin-top:8px">Die App prüft beim Öffnen und solange sie läuft jede Minute. Auf Android (Chrome, installiert) zusätzlich im Hintergrund. ${ios ? 'Auf dem iPhone funktionieren Benachrichtigungen nur, wenn die App über „Teilen → Zum Home-Bildschirm“ installiert ist (iOS 16.4+).' : ''} Für zuverlässige Erinnerungen auch bei geschlossener App: Kalender-Export unten.</div></section>
+  ${typeof aboCard === 'function' ? aboCard() : ''}
   ${typeof keyCard === 'function' ? keyCard() : ''}
   <section class="card"><h2>Kalender-Erinnerungen</h2><div class="hint">Exportiert alle Routinen als wiederkehrende Termine (mit Alarm) und alle datierten Einträge als Ganztagstermine (Alarm am Vortag). In Apple-/Google-Kalender importieren – dann erinnert dich dein Handy immer, auch ohne geöffnete App. Nach Änderungen neu exportieren.</div><div class="btns"><button class="btn" data-act="ics">Kalenderdatei (.ics) exportieren</button></div></section>
   <section class="card"><h2>App</h2>
@@ -189,6 +190,7 @@ function render() {
   else if (TAB === 'chat') h = typeof viewChat === 'function' ? viewChat() : '';
   else h = C.filter(c => c.tab === TAB).map(c => listCard(c)).join('') + (typeof docsCard === 'function' ? docsCard(TAB) : '');
   $('body').innerHTML = h;
+  if (TAB === 'chat' && typeof scrollChat === 'function') scrollChat();
   if (TAB === 'settings') $('theme').value = S.settings.theme;
   if (S.settings.theme === 'auto') delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = S.settings.theme;
   try { if (navigator.setAppBadge) nd ? navigator.setAppBadge(nd) : navigator.clearAppBadge(); } catch (e) { /* egal */ }
@@ -396,6 +398,8 @@ function addItem(k) {
   save();
   const ni = $('in-' + k); if (ni) ni.focus();
 }
+document.addEventListener('focusin', e => { if (e.target.matches('input[type=text],input[type=password],textarea')) document.body.classList.add('kb'); });
+document.addEventListener('focusout', () => setTimeout(() => { if (!document.activeElement || !document.activeElement.matches('input,textarea')) document.body.classList.remove('kb'); }, 50));
 document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.dataset && e.target.dataset.add) { e.preventDefault(); addItem(e.target.dataset.add); } });
 document.addEventListener('change', e => {
   if (e.target.id === 'defTime') { S.settings.defTime = e.target.value || '08:00'; save('Gespeichert'); }
@@ -413,6 +417,8 @@ setInterval(tick, 60 * 1000);
 render();
 if (typeof loadDocs === 'function') loadDocs().then(render);
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+  const hadSw = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadSw) toast('Update geladen – App einmal schließen und neu öffnen.'); });
   navigator.serviceWorker.register('sw.js').then(() => syncData()).then(checkNotify).catch(() => {});
 }
 try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) { /* egal */ }

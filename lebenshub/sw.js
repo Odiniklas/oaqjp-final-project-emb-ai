@@ -1,10 +1,10 @@
 /* Lebenshub Service Worker: Offline-Betrieb + Erinnerungen im Hintergrund */
 importScripts('sched.js');
-const V = 'lebenshub-shell-v4';
+const V = 'lebenshub-shell-v5';
 const ASSETS = ['./', 'index.html', 'styles.css', 'app.js', 'docs.js', 'chat.js', 'vendor/anthropic-sdk-1.5.0.mjs', 'sched.js', 'manifest.webmanifest', 'icon.svg', 'icon-180.png', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(V).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(V).then(c => c.addAll(ASSETS.map(u => new Request(u, { cache: 'reload' })))).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', e => {
@@ -13,16 +13,16 @@ self.addEventListener('activate', e => {
     .then(() => self.clients.claim()));
 });
 
-/* Netz zuerst (damit Updates ankommen), Cache als Offline-Rückfall */
+/* Sofort aus dem Cache starten, im Hintergrund aktualisieren (Änderungen gelten beim nächsten Öffnen) */
 self.addEventListener('fetch', e => {
   const req = e.request;
   if (req.method !== 'GET' || new URL(req.url).origin !== location.origin) return;
-  e.respondWith(
-    fetch(req).then(res => {
-      if (res.ok) { const copy = res.clone(); caches.open(V).then(c => c.put(req, copy)); }
-      return res;
-    }).catch(() => caches.match(req).then(r => r || (req.mode === 'navigate' ? caches.match('index.html') : Response.error())))
-  );
+  e.respondWith(caches.open(V).then(async c => {
+    const hit = await c.match(req, { ignoreSearch: true }) || (req.mode === 'navigate' ? await c.match('index.html') : null);
+    const net = fetch(req).then(res => { if (res.ok) c.put(req, res.clone()); return res; }).catch(() => null);
+    if (hit) { e.waitUntil(net); return hit; }
+    return (await net) || Response.error();
+  }));
 });
 
 /* Android/Chrome: regelmäßige Prüfung im Hintergrund, wenn die App installiert ist */

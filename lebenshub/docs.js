@@ -46,7 +46,9 @@ function keyCard() {
   return `<section class="card"><h2>KI-Analyse von Dokumenten</h2>
     <div class="hint">Für die Analyse brauchst du einen eigenen API-Schlüssel von <b>console.anthropic.com</b> (wird separat von deinem Claude-Abo abgerechnet, meist wenige Cent pro Dokument). Der Schlüssel bleibt nur auf diesem Gerät. Zur Analyse wird das jeweilige Dokument an Anthropic gesendet – nur wenn du auf „Analysieren“ tippst.</div>
     ${k ? `<div class="kv"><span>API-Schlüssel</span><span>hinterlegt (…${esc(k.slice(-4))})</span></div><div class="btns"><button class="btn ghost" data-act="keydel">Schlüssel entfernen</button></div>`
-      : `<div class="add-row"><input type="password" id="apikey" placeholder="sk-ant-…" autocomplete="off"><button class="btn" data-act="keysave">Speichern</button></div>`}</section>`;
+      : `<div class="add-row"><input type="password" id="apikey" placeholder="sk-ant-…" autocomplete="off"><button class="btn" data-act="keysave">Speichern</button></div>`}
+    <label class="f" style="margin-top:8px">Modell<select id="modelSel">${Object.keys(MODELS).map(m => `<option value="${m}" ${m === model() ? 'selected' : ''}>${MODELS[m].label}</option>`).join('')}</select></label>
+    <div class="kv"><span>Verbrauch diesen Monat (ca.)</span><span>${fusd(usageMonth().usd)} · ${usageMonth().n} Anfragen</span></div></section>`;
 }
 
 /* ---------- Dateien hinzufügen ---------- */
@@ -55,7 +57,7 @@ async function normImage(file) {
   const url = URL.createObjectURL(file);
   try {
     const img = new Image(); img.src = url; await img.decode();
-    const s = Math.min(1, 2000 / Math.max(img.naturalWidth, img.naturalHeight));
+    const s = Math.min(1, 1568 / Math.max(img.naturalWidth, img.naturalHeight));
     if (ok.includes(file.type) && s === 1 && file.size < 4e6) return file;
     const c = document.createElement('canvas');
     c.width = Math.round(img.naturalWidth * s); c.height = Math.round(img.naturalHeight * s);
@@ -119,15 +121,14 @@ Regeln: Nur übernehmen, was im Dokument steht – nichts erfinden. Datum als JJ
   let res;
   try {
     res = await client.beta.messages.create({
-      model: 'claude-opus-5-5',
+      ...baseParams(),
       max_tokens: 16000,
-      betas: ['server-side-fallback-2026-07-01'],
-      fallbacks: 'default',
       output_config: { effort: 'medium', format: { type: 'json_schema', schema } },
       system,
       messages: [{ role: 'user', content: [block, { type: 'text', text: 'Dateiname: ' + d.name + '\nBitte analysieren.' }] }]
     });
   } catch (e) { throw new Error(errText(e, A)); }
+  track(res);
   if (res.stop_reason === 'refusal') throw new Error('Claude hat die Analyse dieses Dokuments abgelehnt.');
   if (res.stop_reason === 'max_tokens') throw new Error('Die Antwort war zu lang – bitte das Dokument aufteilen.');
   const txt = res.content.filter(b => b.type === 'text').map(b => b.text).join('');
@@ -138,12 +139,38 @@ Regeln: Nur übernehmen, was im Dokument steht – nichts erfinden. Datum als JJ
 }
 
 /* Gemeinsamer Claude-Zugang für Dokumente und Assistent */
+const MODELS = {
+  'claude-opus-5-5': { label: 'Opus 5.5 – beste Qualität', p: [4, 20, 0.2, 5], fb: true },
+  'claude-sonnet-5-5': { label: 'Sonnet 5.5 – halber Preis', p: [2, 10, 0.1, 2.5], fb: true },
+  'claude-haiku-5-5': { label: 'Haiku 5.5 – sehr günstig', p: [0.1, 0.5, 0.01, 0.125], fb: false }
+};
+function model() { let m = ''; try { m = localStorage.getItem('lebenshub-model') || ''; } catch (e) { /* egal */ } return MODELS[m] ? m : 'claude-opus-5-5'; }
+/* Basis-Parameter je Modell; Fallback bei Ablehnungen nur, wo der Server ihn anbietet */
+function baseParams() {
+  const m = model();
+  return MODELS[m].fb ? { model: m, betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' } : { model: m };
+}
+let sdkP = null;
+function loadSdk() { return sdkP || (sdkP = import(SDK_URL).catch(e => { sdkP = null; throw e; })); }
 async function claude() {
   const key = getKey();
   if (!key) throw new Error('Bitte zuerst unter ⚙︎ einen API-Schlüssel hinterlegen.');
-  const { default: A } = await import(SDK_URL);
+  const { default: A } = await loadSdk();
   return { client: new A({ apiKey: key, dangerouslyAllowBrowser: true }), A };
 }
+/* Ungefähre Kosten (USD) aus der Token-Nutzung, Monatssumme lokal */
+function track(res) {
+  const u = res.usage || {}, p = (MODELS[res.model] || MODELS[model()]).p;
+  const usd = ((u.input_tokens || 0) * p[0] + (u.output_tokens || 0) * p[1] + (u.cache_read_input_tokens || 0) * p[2] + (u.cache_creation_input_tokens || 0) * p[3]) / 1e6;
+  try {
+    const k = 'lebenshub-usage', mo = H.today().slice(0, 7);
+    let o = JSON.parse(localStorage.getItem(k) || '{}'); if (o.m !== mo) o = { m: mo, usd: 0, n: 0 };
+    o.usd += usd; o.n++; localStorage.setItem(k, JSON.stringify(o));
+  } catch (e) { /* egal */ }
+  return usd;
+}
+function usageMonth() { try { const o = JSON.parse(localStorage.getItem('lebenshub-usage') || '{}'); return o.m === H.today().slice(0, 7) ? o : { usd: 0, n: 0 }; } catch (e) { return { usd: 0, n: 0 }; } }
+const fusd = v => v < 0.01 ? (v * 100).toFixed(2).replace('.', ',') + ' ct' : v.toFixed(2).replace('.', ',') + ' $';
 function errText(e, A) {
   if (e instanceof A.AuthenticationError) return 'Der API-Schlüssel ist ungültig.';
   if (e instanceof A.PermissionDeniedError) return 'Der API-Schlüssel hat keine Berechtigung (Guthaben/Abrechnung in der Console prüfen).';
@@ -227,5 +254,6 @@ function docAct(act, b) {
   return false;
 }
 document.addEventListener('change', e => {
+  if (e.target.id === 'modelSel') { try { localStorage.setItem('lebenshub-model', e.target.value); } catch (er) { /* egal */ } toast('Modell: ' + MODELS[e.target.value].label); }
   if (e.target.id === 'docFile' && e.target.files.length) { const fl = Array.from(e.target.files); e.target.value = ''; addFiles(fl); }
 });

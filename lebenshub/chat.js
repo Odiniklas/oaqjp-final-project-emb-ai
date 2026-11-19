@@ -1,58 +1,65 @@
 /* Lebenshub – Assistent: Chat (Text oder Sprache) mit Claude, der den Hub selbst pflegt.
-   Nutzt Globals aus app.js/docs.js (S, H, C, esc, uid, save, toast, render, claude, errText, toBlock, normImage, DB, DOCS, meta, AREA). */
+   Zwei Wege: „API“ (direkt in der App, eigener Schlüssel) oder „Claude-Abo“ (über die Claude-App, ohne API-Kosten).
+   Nutzt Globals aus app.js/docs.js (S, H, C, esc, uid, save, toast, render, claude, baseParams, track, fusd, errText,
+   toBlock, normImage, DB, DOCS, meta, AREA, loadSdk, getKey). */
 'use strict';
 const CHAT_KEY = 'lebenshub-chat';
-let CHAT = [], chatBusy = false, chatDraft = '', chatFiles = [], undoSnap = null, speakOn = false, recog = null;
+let CHAT = [], chatBusy = false, chatDraft = '', chatFiles = [], undoSnap = null, recog = null, viaVoice = false, ttsReady = false;
+const pref = (k, d) => { try { const v = localStorage.getItem(CHAT_KEY + '-' + k); return v == null ? d : v; } catch (e) { return d; } };
+const setPref = (k, v) => { try { localStorage.setItem(CHAT_KEY + '-' + k, v); } catch (e) { /* egal */ } };
+let speakOn = pref('tts', '0') === '1', talkMode = false, mode = pref('mode', 'api'); // 'api' | 'abo'
 try { CHAT = JSON.parse(localStorage.getItem(CHAT_KEY)) || []; } catch (e) { CHAT = []; }
-try { speakOn = localStorage.getItem(CHAT_KEY + '-tts') === '1'; } catch (e) { /* egal */ }
 function saveChat() { try { localStorage.setItem(CHAT_KEY, JSON.stringify(CHAT.slice(-60))); } catch (e) { /* egal */ } }
 
-const SYS = `Du bist der persönliche Assistent im „Lebenshub“, einer App für Termine, Routinen, Arbeit, Finanzen und Gesundheit. Antworte auf Deutsch, knapp, direkt und freundlich (Du-Form).
-Deine Aufgabe: Alles, was der Nutzer erzählt, diktiert oder anhängt, sofort sinnvoll in den Hub übernehmen – ohne Rückfrage, wenn die Zuordnung klar ist.
-- Neue Infos (Termine, Fristen, Kontostände, Bewerbungen, Ideen, Beschwerden …) mit add_entry in die passende Liste eintragen; Bestehendes mit update_entry aktualisieren statt doppelt anzulegen (prüfe die Hub-Daten auf vorhandene Einträge).
-- Wiederkehrendes als Routine (add_routine). Erledigtes abhaken (complete_routine, oder Status per update_entry).
-- Angehängte Dokumente/Fotos: Inhalt auswerten, die Datei mit store_attachment im passenden Bereich ablegen und die relevanten Fakten als Einträge übernehmen.
-- Kontostände/Depotwerte: Liste „Konten & Depots“ (k), Wert und Stichtag in note, Datum = Stichtag.
-- Nur übernehmen, was der Nutzer sagt oder was im Dokument steht – nichts erfinden. Datumsangaben als JJJJ-MM-TT. Keine IBAN, Konto-, Depot-, Versicherungs- oder Kundennummern speichern.
-- Bei echter Mehrdeutigkeit kurz nachfragen, sonst handeln.
-Nach dem Handeln: in 1–3 Sätzen sagen, was du eingetragen/geändert hast, und – wenn sinnvoll – einen konkreten nächsten Schritt vorschlagen, damit Projekte gut vorankommen. Bei Fragen zum Hub (z. B. „Was steht diese Woche an?“) aus den Hub-Daten antworten. Keine Anlage-, Rechts- oder medizinische Beratung im engeren Sinn; bei Gesundheitsthemen sachlich bleiben und bei Warnzeichen zum Arzt raten.`;
+/* Stabiler Teil des Prompts (wird gecacht – nicht pro Anfrage verändern) */
+const SYS = `Du bist der persönliche Assistent im „Lebenshub“ (Termine, Routinen, Arbeit, Finanzen, Gesundheit). Antworte auf Deutsch, knapp und freundlich (Du-Form).
+Übernimm alles, was der Nutzer erzählt oder anhängt, sofort in den Hub – ohne Rückfrage, wenn die Zuordnung klar ist:
+- Neues mit add_entry in die passende Liste; Vorhandenes mit update_entry aktualisieren statt doppelt anlegen (IDs aus den Hub-Daten).
+- Wiederkehrendes als Routine (add_routine), Erledigtes abhaken (complete_routine bzw. Status per update_entry).
+- Angehängte Dateien: auswerten, mit store_attachment im passenden Bereich ablegen, relevante Fakten als Einträge übernehmen.
+- Kontostände/Depotwerte in Liste k, Wert und Stichtag in note, Datum = Stichtag.
+- Nichts erfinden. Datum als JJJJ-MM-TT. Keine IBAN, Konto-, Depot-, Versicherungs- oder Kundennummern speichern.
+- Nur bei echter Mehrdeutigkeit kurz nachfragen.
+Danach in 1–2 Sätzen sagen, was du geändert hast; wenn sinnvoll ein konkreter nächster Schritt. Fragen zum Hub aus den Hub-Daten beantworten. Keine Anlage-, Rechts- oder medizinische Beratung im engeren Sinn; bei gesundheitlichen Warnzeichen zum Arzt raten.`;
 
 function listEnum() { return C.map(c => c.k); }
 function tools() {
   const str = d => ({ type: 'string', description: d });
   return [
-    { name: 'add_entry', description: 'Neuen Eintrag in einer Liste des Hubs anlegen.',
+    { name: 'add_entry', description: 'Neuen Eintrag in einer Liste anlegen.',
       input_schema: { type: 'object', additionalProperties: false, required: ['list', 'title'], properties: {
-        list: { type: 'string', enum: listEnum(), description: 'Listen-Schlüssel (siehe Hub-Daten)' }, title: str('Kurzer Titel'),
-        note: str('Notiz/Wert, optional'), date: str('Datum/Frist JJJJ-MM-TT, optional'), status: str('Statusname der Liste, optional') } } },
-    { name: 'update_entry', description: 'Vorhandenen Eintrag ändern (nur angegebene Felder).',
+        list: { type: 'string', enum: listEnum() }, title: str('Kurzer Titel'), note: str('Notiz/Wert'), date: str('JJJJ-MM-TT'), status: str('Statusname der Liste') } } },
+    { name: 'update_entry', description: 'Eintrag ändern (nur angegebene Felder).',
       input_schema: { type: 'object', additionalProperties: false, required: ['list', 'id'], properties: {
-        list: { type: 'string', enum: listEnum() }, id: str('Eintrags-ID aus den Hub-Daten'), title: str('neuer Titel'),
-        note: str('neue Notiz/Wert'), date: str('neues Datum JJJJ-MM-TT oder leer zum Entfernen'), status: str('neuer Statusname') } } },
-    { name: 'delete_entry', description: 'Eintrag löschen – nur wenn der Nutzer es ausdrücklich will.',
+        list: { type: 'string', enum: listEnum() }, id: str('Eintrags-ID'), title: str('Titel'), note: str('Notiz/Wert'), date: str('JJJJ-MM-TT, leer = entfernen'), status: str('Statusname') } } },
+    { name: 'delete_entry', description: 'Eintrag löschen – nur auf ausdrücklichen Wunsch.',
       input_schema: { type: 'object', additionalProperties: false, required: ['list', 'id'], properties: { list: { type: 'string', enum: listEnum() }, id: str('Eintrags-ID') } } },
     { name: 'add_routine', description: 'Wiederkehrende Aufgabe anlegen.',
       input_schema: { type: 'object', additionalProperties: false, required: ['title', 'freq'], properties: {
-        title: str('Aufgabe'), note: str('Notiz, optional'), freq: { type: 'string', enum: ['daily', 'weekly', 'monthly'] },
-        every: { type: 'integer', description: 'Alle N Tage/Wochen/Monate, Standard 1' }, weekday: { type: 'integer', description: '0=So … 6=Sa (bei weekly)' },
-        monthday: { type: 'integer', description: '1–28, 31=letzter Tag (bei monthly)' }, time: str('Uhrzeit HH:MM, optional') } } },
-    { name: 'complete_routine', description: 'Routine für heute als erledigt abhaken.',
+        title: str('Aufgabe'), note: str('Notiz'), freq: { type: 'string', enum: ['daily', 'weekly', 'monthly'] },
+        every: { type: 'integer', description: 'alle N Einheiten, Standard 1' }, weekday: { type: 'integer', description: '0=So…6=Sa' },
+        monthday: { type: 'integer', description: '1–28, 31=letzter Tag' }, time: str('HH:MM') } } },
+    { name: 'complete_routine', description: 'Routine heute abhaken.',
       input_schema: { type: 'object', additionalProperties: false, required: ['id'], properties: { id: str('Routinen-ID') } } },
     { name: 'delete_routine', description: 'Routine löschen – nur auf ausdrücklichen Wunsch.',
       input_schema: { type: 'object', additionalProperties: false, required: ['id'], properties: { id: str('Routinen-ID') } } },
-    { name: 'store_attachment', description: 'Die in dieser Nachricht angehängten Dateien im passenden Bereich unter „Dokumente“ ablegen, mit Titel und Kurzfassung.',
+    { name: 'store_attachment', description: 'Angehängte Dateien dieser Nachricht unter „Dokumente“ ablegen.',
       input_schema: { type: 'object', additionalProperties: false, required: ['area', 'title', 'summary'], properties: {
-        area: { type: 'string', enum: ['work', 'money', 'health'] }, title: str('Titel des Dokuments'), summary: str('2–4 Sätze Zusammenfassung') } } }
+        area: { type: 'string', enum: ['work', 'money', 'health'] }, title: str('Titel'), summary: str('2–4 Sätze') } } }
   ];
 }
 
+/* Kompakte Hub-Daten (kurze Schlüssel = weniger Tokens) */
 function hubSnapshot() {
   const t = H.today();
-  const lists = C.map(c => ({ key: c.k, title: c.title, bereich: c.tab, status: c.st || null,
-    items: S.lists[c.k].map(it => Object.assign({ id: it.id, title: it.n }, it.t ? { note: it.t } : {}, it.d ? { date: it.d } : {}, c.st ? { status: c.st[it.s] } : {})) }));
-  const routines = S.routines.map(r => { const st = H.state(r, t); return { id: r.id, title: r.n, rhythmus: H.freqLabel(r), time: r.time || null, faellig: st.due, naechster: st.next, zuletzt: r.last || null, claude: !!r.claude }; });
-  const docs = DOCS.map(d => ({ bereich: d.area, name: d.name, title: d.analysis && d.analysis.title || null }));
-  return 'Heute: ' + t + ' (' + H.WDL[H.P(t).getUTCDay()] + ')\nHub-Daten (JSON):\n' + JSON.stringify({ lists, routines, dokumente: docs });
+  const lists = {};
+  C.forEach(c => {
+    lists[c.k] = { name: c.title, ...(c.st ? { st: c.st } : {}),
+      e: S.lists[c.k].map(it => [it.id, it.n, it.t || '', it.d || ''].concat(c.st ? [c.st[it.s]] : [])) };
+  });
+  const r = S.routines.map(x => { const st = H.state(x, t); return [x.id, x.n, H.freqLabel(x) + (x.time ? ' ' + x.time : ''), st.due ? 'fällig' : 'nächste ' + (st.next || '-')]; });
+  return `<hub heute="${t} ${H.WDL[H.P(t).getUTCDay()]}">\nFormat Listeneintrag: [id, titel, notiz, datum, status]; Routine: [id, titel, rhythmus, zustand]\n` +
+    JSON.stringify({ listen: lists, routinen: r, dokumente: DOCS.map(d => (d.analysis && d.analysis.title) || d.name) }) + '\n</hub>';
 }
 
 function runTool(name, x, turn) {
@@ -62,7 +69,7 @@ function runTool(name, x, turn) {
   const title = k => (C.find(y => y.k === k) || {}).title;
   switch (name) {
     case 'add_entry': {
-      const it = { id: uid(), n: String(x.title).trim(), t: x.note || '', d: date(x.date), s: stIdx(x.list, x.status) };
+      const it = { id: uid(), n: String(x.title || '').trim() || 'Eintrag', t: x.note || '', d: date(x.date), s: stIdx(x.list, x.status) };
       L(x.list).push(it);
       return { label: '＋ ' + title(x.list) + ': ' + it.n, result: 'angelegt, id=' + it.id };
     }
@@ -81,7 +88,7 @@ function runTool(name, x, turn) {
     }
     case 'add_routine': {
       const t = H.today(), freq = ['daily', 'weekly', 'monthly'].includes(x.freq) ? x.freq : 'daily';
-      const r = { id: uid(), n: String(x.title).trim(), note: x.note || '', freq, every: Math.max(1, x.every | 0 || 1), wd: x.weekday != null ? (x.weekday | 0) % 7 : 1,
+      const r = { id: uid(), n: String(x.title || '').trim() || 'Routine', note: x.note || '', freq, every: Math.max(1, x.every | 0 || 1), wd: x.weekday != null ? (x.weekday | 0) % 7 : 1,
         md: Math.min(31, Math.max(1, x.monthday | 0 || 1)), time: /^\d{2}:\d{2}$/.test(x.time || '') ? x.time : '', start: t, last: '', hist: [] };
       if (freq === 'weekly') r.start = H.firstWd(t, r.wd);
       S.routines.push(r);
@@ -103,47 +110,60 @@ function runTool(name, x, turn) {
       if (!turn.files.length) throw new Error('Keine Datei angehängt');
       turn.files.forEach(f => { f.area = ['work', 'money', 'health'].includes(x.area) ? x.area : 'work'; f.analysis = { title: x.title, summary: x.summary, facts: [], entries: [], at: new Date().toISOString() }; });
       turn.stored = true;
-      return { label: '📎 Dokument abgelegt (' + AREA[turn.files[0].area] + '): ' + x.title, result: 'abgelegt' };
+      return { label: '📎 Abgelegt (' + AREA[turn.files[0].area] + '): ' + x.title, result: 'abgelegt' };
     }
   }
   throw new Error('Unbekanntes Werkzeug ' + name);
 }
 
-/* Verlauf als reine Text-Nachrichten (die Werkzeug-Schleife eines Zugs bleibt nur während des Zugs erhalten) */
+/* Kurzer Verlauf als Text (spart Tokens) */
 function history() {
   const h = [];
-  CHAT.slice(-20).forEach(m => {
-    if (m.err) return;
-    const text = m.text + (m.actions && m.actions.length ? '\n[Ausgeführt: ' + m.actions.join('; ') + ']' : '') + (m.files && m.files.length ? '\n[Angehängt: ' + m.files.join(', ') + ']' : '');
+  CHAT.slice(-10).forEach(m => {
+    if (m.err || m.local) return;
+    let text = (m.text || '').slice(0, 1500) + (m.actions && m.actions.length ? '\n[Ausgeführt: ' + m.actions.join('; ') + ']' : '') + (m.files && m.files.length ? '\n[Angehängt: ' + m.files.join(', ') + ']' : '');
     if (h.length && h[h.length - 1].role === m.role) h[h.length - 1].content += '\n\n' + text;
     else h.push({ role: m.role, content: text || '…' });
   });
   while (h.length && h[0].role !== 'user') h.shift();
-  if (h.length && h[h.length - 1].role === 'user') h.pop(); // unbeantwortete Nachricht nicht doppelt senden
+  if (h.length && h[h.length - 1].role === 'user') h.pop();
   return h;
+}
+
+function finishTurn(reply, actions, snap, err, cost) {
+  chatBusy = false;
+  undoSnap = actions.length ? snap : null;
+  CHAT.push({ role: 'assistant', text: reply || (actions.length ? 'Erledigt.' : '…'), actions, err, cost, at: Date.now() });
+  saveChat();
+  if (actions.length) save(); else render();
+  scrollChat();
+  if ((speakOn || viaVoice || talkMode) && reply && !err) speak(reply, talkMode);
+  else if (talkMode && !err) setTimeout(listen, 400);
 }
 
 async function sendChat(text) {
   text = (text || '').trim();
   if (chatBusy || (!text && !chatFiles.length)) return;
+  if (mode === 'abo') return sendAbo(text);
   const files = chatFiles; chatFiles = []; chatDraft = '';
-  CHAT.push({ role: 'user', text, files: files.map(f => f.name), at: Date.now() });
+  CHAT.push({ role: 'user', text, files: files.map(f => f.name), voice: viaVoice, at: Date.now() });
   chatBusy = true; saveChat(); render(); scrollChat();
   const snap = JSON.stringify(S), turn = { files: files.map(f => ({ id: uid(), name: f.name, type: f.type || '', size: f.size, added: H.today(), blob: f })), stored: false };
-  let reply = '', actions = [], err = false;
+  let reply = '', actions = [], err = false, cost = 0;
   try {
     const { client, A } = await claude();
     const content = [];
     for (const f of turn.files) content.push(await toBlock(f));
-    content.push({ type: 'text', text: text || 'Bitte auswerten und in den Hub übernehmen.' });
+    content.push({ type: 'text', text: hubSnapshot() + '\n\n' + (text || 'Bitte auswerten und in den Hub übernehmen.') +
+      (viaVoice || talkMode ? '\n\n(Per Sprache – Antwort wird vorgelesen: höchstens 2 kurze Sätze, keine Aufzählungen.)' : '') });
     const msgs = history().concat([{ role: 'user', content }]);
-    const system = [{ type: 'text', text: SYS }, { type: 'text', text: hubSnapshot() }];
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 8; i++) {
       let res;
       try {
-        res = await client.beta.messages.create({ model: 'claude-opus-5-5', max_tokens: 16000, betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default',
-          output_config: { effort: 'medium' }, system, tools: tools(), messages: msgs });
+        res = await client.beta.messages.create({ ...baseParams(), max_tokens: 4000, cache_control: { type: 'ephemeral' },
+          output_config: { effort: 'low' }, system: [{ type: 'text', text: SYS, cache_control: { type: 'ephemeral' } }], tools: tools(), messages: msgs });
       } catch (e) { throw new Error(errText(e, A)); }
+      cost += track(res);
       msgs.push({ role: 'assistant', content: res.content });
       const said = res.content.filter(b => b.type === 'text').map(b => b.text).join('').trim();
       if (said) reply = said;
@@ -155,17 +175,72 @@ async function sendChat(text) {
         catch (e) { return { type: 'tool_result', tool_use_id: u.id, content: 'Fehler: ' + e.message, is_error: true }; }
       }) });
     }
-    // Angehängte Dateien immer ablegen – notfalls im Bereich Arbeit
     for (const f of turn.files) { if (!f.area) f.area = 'work'; await DB.put(f); DOCS.push(meta(f)); }
     if (turn.files.length && !turn.stored) actions.push('📎 ' + turn.files.length + ' Datei(en) unter Arbeit → Dokumente abgelegt');
   } catch (e) { reply = e.message || String(e); err = true; }
-  chatBusy = false;
+  viaVoice = false;
+  finishTurn(reply, actions, snap, err, cost);
+}
+
+/* ---------- Claude-Abo-Modus: Prompt in die Claude-App, Antwort zurück (keine API-Kosten) ---------- */
+const ABO_FORMAT = `Antworte zuerst ganz normal. Wenn etwas in den Lebenshub soll, hänge am Ende GENAU EINEN Codeblock an:
+\`\`\`lebenshub
+{"actions":[{"tool":"add_entry","list":"x","title":"…","note":"…","date":"JJJJ-MM-TT","status":"…"}]}
+\`\`\`
+Werkzeuge: add_entry(list,title,note?,date?,status?), update_entry(list,id,title?,note?,date?,status?), delete_entry(list,id), add_routine(title,freq=daily|weekly|monthly,every?,weekday 0=So..6=Sa?,monthday?,time HH:MM?, note?), complete_routine(id), delete_routine(id).
+Listen: ${'${LISTEN}'}
+Regeln: nichts erfinden, Datum JJJJ-MM-TT, keine IBAN/Konto-/Kunden-/Versicherungsnummern, vorhandene Einträge per update_entry mit ihrer id ändern statt doppelt anlegen.`;
+function aboFormat() { return ABO_FORMAT.replace('${LISTEN}', C.map(c => c.k + '=' + c.title + (c.st ? ' (Status: ' + c.st.join('/') + ')' : '')).join(', ')); }
+function aboPrompt(text) {
+  return `Du bist mein Assistent für meinen „Lebenshub“ (App für Termine, Routinen, Arbeit, Finanzen, Gesundheit). Antworte auf Deutsch, knapp.
+${aboFormat()}
+
+Aktuelle Hub-Daten:
+${hubSnapshot()}
+
+Meine Nachricht:
+${text}`;
+}
+async function copyText(t) {
+  try { await navigator.clipboard.writeText(t); return true; } catch (e) {
+    const ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select();
+    let ok = false; try { ok = document.execCommand('copy'); } catch (er) { /* egal */ } ta.remove(); return ok;
+  }
+}
+async function sendAbo(text) {
+  if (chatFiles.length) { toast('Dateien bitte direkt in der Claude-App anhängen.'); chatFiles = []; }
+  if (!text) return;
+  chatDraft = '';
+  const ok = await copyText(aboPrompt(text));
+  CHAT.push({ role: 'user', text, at: Date.now(), local: true });
+  CHAT.push({ role: 'assistant', local: true, at: Date.now(), text: ok
+    ? 'Ich habe deine Nachricht samt Hub-Daten kopiert. In Claude einfügen, Antwort abwarten, die Antwort kopieren (lange drücken → Kopieren) und hier „Antwort einfügen“ tippen.'
+    : 'Kopieren hat nicht geklappt. Bitte erneut versuchen.', aboWait: ok });
+  saveChat(); render(); scrollChat();
+  if (ok) window.open('https://claude.ai/new', '_blank');
+}
+function parseAbo(t) {
+  const m = t.match(/```lebenshub\s*([\s\S]*?)```/) || t.match(/```json\s*(\{[\s\S]*?"actions"[\s\S]*?\})\s*```/) || t.match(/(\{\s*"actions"[\s\S]*\})/);
+  if (!m) return null;
+  try { const o = JSON.parse(m[1]); return Array.isArray(o.actions) ? o.actions : null; } catch (e) { return null; }
+}
+async function pasteAbo() {
+  let t = '';
+  try { t = await navigator.clipboard.readText(); } catch (e) { /* iOS fragt ggf. nach */ }
+  if (!t) t = prompt('Antwort von Claude hier einfügen:') || '';
+  if (!t.trim()) return;
+  applyAbo(t);
+}
+function applyAbo(t) {
+  const acts = parseAbo(t), snap = JSON.stringify(S), actions = [], turn = { files: [] };
+  (acts || []).forEach(a => { try { actions.push(runTool(a.tool, a, turn).label); } catch (e) { actions.push('⚠︎ ' + (a.tool || '?') + ': ' + e.message); } });
+  const reply = t.replace(/```lebenshub[\s\S]*?```/, '').trim().slice(0, 4000);
+  CHAT.forEach(m => { m.aboWait = false; });
+  CHAT.push({ role: 'assistant', text: (reply || 'Übernommen.') + (acts ? '' : '\n\n(Kein Lebenshub-Block gefunden – nichts eingetragen.)'), actions, via: 'abo', at: Date.now() });
   undoSnap = actions.length ? snap : null;
-  CHAT.push({ role: 'assistant', text: reply || (actions.length ? 'Erledigt.' : '…'), actions, err, at: Date.now() });
   saveChat();
-  if (actions.length) save(); else render();
+  if (actions.length) save(actions.length + ' Änderungen übernommen'); else render();
   scrollChat();
-  if (speakOn && reply && !err) speak(reply);
 }
 
 function undoLast() {
@@ -177,51 +252,95 @@ function undoLast() {
 }
 
 /* ---------- Sprache ---------- */
-function speak(t) {
-  try { const u = new SpeechSynthesisUtterance(t.replace(/[*#_`]/g, '')); u.lang = 'de-DE'; speechSynthesis.cancel(); speechSynthesis.speak(u); } catch (e) { /* egal */ }
+let voice = null;
+function pickVoice() {
+  try {
+    const vs = speechSynthesis.getVoices().filter(v => /^de([-_]|$)/i.test(v.lang));
+    voice = vs.find(v => /premium|enhanced|erweitert/i.test(v.name)) || vs.find(v => /Anna|Helena|Petra|Markus|Yannick|Martin/i.test(v.name)) || vs.find(v => v.localService) || vs[0] || null;
+  } catch (e) { voice = null; }
+}
+try { pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; } catch (e) { /* egal */ }
+function unlockTts() { // iOS: Sprachausgabe muss einmal durch eine Berührung freigeschaltet werden
+  if (ttsReady) return; ttsReady = true;
+  try { const u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); } catch (e) { /* egal */ }
+}
+function speak(t, thenListen) {
+  try {
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(t.replace(/[*#_`>|]/g, '').replace(/\n+/g, '. ').slice(0, 1200));
+    u.lang = 'de-DE'; if (voice) u.voice = voice; u.rate = 1.05;
+    if (thenListen) u.onend = () => { if (talkMode) setTimeout(listen, 300); };
+    speechSynthesis.speak(u);
+  } catch (e) { if (thenListen && talkMode) listen(); }
 }
 function listen() {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR) { toast('Tipp: Nutze das Mikrofon auf der iPhone-Tastatur zum Diktieren.'); const i = $('chatIn'); if (i) i.focus(); return; }
+  if (!SR) { talkMode = false; toast('Tipp: Nutze das Mikrofon auf der iPhone-Tastatur zum Diktieren.'); render(); const i = $('chatIn'); if (i) i.focus(); return; }
   if (recog) { recog.stop(); return; }
+  try { speechSynthesis.cancel(); } catch (e) { /* egal */ }
   recog = new SR(); recog.lang = 'de-DE'; recog.interimResults = true; recog.continuous = false;
   let finalText = '';
   recog.onresult = e => { let s = ''; for (const r of e.results) s += r[0].transcript; finalText = s; const i = $('chatIn'); if (i) i.value = s; chatDraft = s; };
-  recog.onend = () => { recog = null; render(); if (finalText.trim()) sendChat(finalText); };
-  recog.onerror = e => { recog = null; render(); if (e.error === 'not-allowed') toast('Mikrofon nicht erlaubt – in den iPhone-Einstellungen freigeben oder Tastatur-Diktat nutzen.'); };
-  recog.start(); render();
+  recog.onend = () => { recog = null; if (finalText.trim()) { viaVoice = true; sendChat(finalText); } else { if (talkMode) { talkMode = false; toast('Gesprächsmodus beendet.'); } render(); } };
+  recog.onerror = e => { recog = null; talkMode = false; render(); if (e.error === 'not-allowed' || e.error === 'service-not-allowed') toast('Mikrofon nicht erlaubt – in den iPhone-Einstellungen freigeben oder Tastatur-Diktat nutzen.'); };
+  try { recog.start(); } catch (e) { recog = null; }
+  render();
 }
 
 /* ---------- Ansicht ---------- */
 function fmtText(t) { return esc(t).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>'); }
 function viewChat() {
-  if (!getKey()) return `<section class="card wide"><h2>Assistent</h2><div class="hint">Der Assistent nutzt Claude und braucht deinen API-Schlüssel (console.anthropic.com). Hinterlege ihn unter ⚙︎ → „KI-Analyse von Dokumenten“.</div><div class="btns"><button class="btn" data-act="tab" data-v="settings">Zu den Einstellungen</button></div></section>`;
+  const abo = mode === 'abo';
+  if (!abo && !getKey()) return `<section class="card wide"><h2>Assistent</h2>
+    <div class="hint">Wähle, wie der Assistent arbeiten soll:</div>
+    <div class="kv"><span><b>Über dein Claude-Abo</b></span><span>keine Zusatzkosten</span></div>
+    <div class="hint">Die App kopiert deine Nachricht samt Hub-Daten, du fügst sie in der Claude-App ein und holst die Antwort zurück. Claude kann dort auch im Web recherchieren.</div>
+    <div class="btns"><button class="btn" data-act="cmode" data-v="abo">Claude-Abo nutzen</button></div>
+    <div class="kv" style="margin-top:10px"><span><b>Direkt in der App (API)</b></span><span>wenige Cent pro Nachricht</span></div>
+    <div class="hint">Schneller und automatisch, mit Sprache und Dokumenten – braucht einen API-Schlüssel (⚙︎).</div>
+    <div class="btns"><button class="btn ghost" data-act="tab" data-v="settings">API-Schlüssel eintragen</button></div></section>`;
+  loadSdk && !abo && loadSdk().catch(() => {});
   const last = CHAT[CHAT.length - 1];
-  const msgs = CHAT.map((m, i) => `<div class="msg ${m.role}${m.err ? ' err' : ''}">${m.text ? `<div>${fmtText(m.text)}</div>` : ''}${m.files && m.files.length ? `<small>📎 ${m.files.map(esc).join(', ')}</small>` : ''}${m.actions && m.actions.length ? `<ul class="acts">${m.actions.map(a => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}${i === CHAT.length - 1 && undoSnap && !m.undone ? '<button class="chip" data-act="cundo">Rückgängig</button>' : ''}${m.undone ? '<small>rückgängig gemacht</small>' : ''}</div>`).join('')
-    || '<div class="hint">Erzähl mir einfach, was ansteht – oder häng ein Dokument/Foto an. Ich trage alles in deinen Hub ein. Zum Beispiel: „Ich hab am Dienstag um 10 Physio wegen dem Knie“, „Mein Trade-Republic-Depot steht bei 22.000 €“ oder „Was steht diese Woche an?“</div>';
-  return `<section class="card wide chat"><h2>Assistent<small><button class="chip ${speakOn ? '' : 'd'}" data-act="ctts">${speakOn ? '🔊 Vorlesen an' : '🔈 Vorlesen aus'}</button> ${CHAT.length ? '<button class="chip d" data-act="cclear">Leeren</button>' : ''}</small></h2>
-    <div class="msgs" id="msgs">${msgs}${chatBusy ? '<div class="msg assistant"><div class="typing">Claude denkt nach …</div></div>' : ''}</div>
+  const msgs = CHAT.map((m, i) => `<div class="msg ${m.role}${m.err ? ' err' : ''}">${m.text ? `<div>${fmtText(m.text)}</div>` : ''}${m.files && m.files.length ? `<small>📎 ${m.files.map(esc).join(', ')}</small>` : ''}${m.actions && m.actions.length ? `<ul class="acts">${m.actions.map(a => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}${m.aboWait && i === CHAT.length - 1 ? '<button class="btn" data-act="cpaste">Antwort einfügen</button>' : ''}${i === CHAT.length - 1 && undoSnap && !m.undone ? '<button class="chip" data-act="cundo">Rückgängig</button>' : ''}${m.undone ? '<small>rückgängig gemacht</small>' : ''}${m.cost ? `<small class="cost">≈ ${fusd(m.cost)}</small>` : ''}${m.via === 'abo' ? '<small class="cost">über Claude-Abo</small>' : ''}</div>`).join('')
+    || `<div class="hint">${abo ? 'Abo-Modus: Schreib oder sprich deine Nachricht, tippe „In Claude öffnen“, füge sie in Claude ein und hol die Antwort mit „Antwort einfügen“ zurück. Ideal für Recherchen – ohne API-Kosten.' : 'Erzähl mir, was ansteht – oder häng ein Dokument/Foto an. Ich trage alles ein. Zum Beispiel: „Dienstag 10 Uhr Physio wegen dem Knie“, „Depot steht bei 22.000 €“ oder „Was steht diese Woche an?“. Mit 🎙 führst du ein Gespräch per Sprache.'}</div>`;
+  return `<section class="card wide chat"><h2>Assistent<small class="chips">
+      <button class="chip ${abo ? '' : 'd'}" data-act="cmode" data-v="${abo ? 'api' : 'abo'}">${abo ? 'Modus: Claude-Abo' : 'Modus: API'}</button>
+      ${!abo ? `<button class="chip ${talkMode ? 'due' : 'd'}" data-act="ctalk">${talkMode ? '🎙 Gespräch läuft' : '🎙 Gespräch'}</button><button class="chip ${speakOn ? '' : 'd'}" data-act="ctts">${speakOn ? '🔊 an' : '🔈 aus'}</button>` : '<button class="chip d" data-act="cpaste">📋 Antwort einfügen</button>'}
+      ${CHAT.length ? '<button class="chip d" data-act="cclear">Leeren</button>' : ''}</small></h2>
+    <div class="msgs" id="msgs">${msgs}${chatBusy ? '<div class="msg assistant"><div class="typing">Claude denkt nach …</div></div>' : ''}${recog ? '<div class="msg user"><div class="typing">Ich höre zu …</div></div>' : ''}</div>
     ${chatFiles.length ? `<div class="hint">📎 ${chatFiles.map(f => esc(f.name)).join(', ')} <button class="chip d" data-act="cfclear">entfernen</button></div>` : ''}
-    <div class="chatbar"><button class="icon-btn" data-act="cattach" aria-label="Datei anhängen">＋</button>
-      <textarea id="chatIn" rows="1" placeholder="Schreiben …" ${chatBusy ? 'disabled' : ''}>${esc(chatDraft)}</textarea>
+    <div class="chatbar">${abo ? '' : '<button class="icon-btn" data-act="cattach" aria-label="Datei anhängen">＋</button>'}
+      <textarea id="chatIn" rows="1" placeholder="${abo ? 'Frage/Auftrag …' : 'Schreiben …'}" ${chatBusy ? 'disabled' : ''}>${esc(chatDraft)}</textarea>
       <button class="icon-btn ${recog ? 'on' : ''}" data-act="cmic" aria-label="Sprechen">🎤</button>
-      <button class="btn" data-act="csend" ${chatBusy ? 'disabled' : ''}>Senden</button></div></section>`;
+      <button class="btn" data-act="csend" ${chatBusy ? 'disabled' : ''}>${abo ? 'In Claude öffnen' : 'Senden'}</button></div></section>`;
 }
 function scrollChat() { requestAnimationFrame(() => { const m = $('msgs'); if (m) m.scrollTop = m.scrollHeight; }); }
 
-function chatAct(act) {
+function chatAct(act, b) {
   switch (act) {
-    case 'csend': { const i = $('chatIn'); sendChat(i ? i.value : ''); return true; }
-    case 'cmic': listen(); return true;
+    case 'csend': { unlockTts(); const i = $('chatIn'); sendChat(i ? i.value : ''); return true; }
+    case 'cmic': unlockTts(); listen(); return true;
+    case 'ctalk': unlockTts(); talkMode = !talkMode; if (talkMode) listen(); else { if (recog) recog.stop(); try { speechSynthesis.cancel(); } catch (e) { /* egal */ } render(); } return true;
     case 'cattach': $('chatFile').click(); return true;
     case 'cfclear': chatFiles = []; render(); return true;
     case 'cundo': undoLast(); return true;
-    case 'ctts': speakOn = !speakOn; try { localStorage.setItem(CHAT_KEY + '-tts', speakOn ? '1' : '0'); } catch (e) { /* egal */ } if (!speakOn) try { speechSynthesis.cancel(); } catch (e) { /* egal */ } render(); return true;
+    case 'cpaste': pasteAbo(); return true;
+    case 'cpaste2': TAB = 'chat'; render(); pasteAbo(); return true;
+    case 'cmode': mode = b.dataset.v; setPref('mode', mode); render(); return true;
+    case 'ctts': unlockTts(); speakOn = !speakOn; setPref('tts', speakOn ? '1' : '0'); if (!speakOn) try { speechSynthesis.cancel(); } catch (e) { /* egal */ } render(); return true;
     case 'cclear': if (confirm('Chatverlauf löschen? Deine Hub-Daten bleiben erhalten.')) { CHAT = []; undoSnap = null; saveChat(); render(); } return true;
+    case 'cproj': copyText(projectInstructions()).then(ok => toast(ok ? 'Projekt-Anweisung kopiert – in Claude unter Projekt → Anweisungen einfügen.' : 'Kopieren fehlgeschlagen')); return true;
   }
   return false;
 }
-document.addEventListener('input', e => { if (e.target.id === 'chatIn') chatDraft = e.target.value; });
+/* Anweisung für ein Claude-Projekt „Lebenshub“ (claude.ai) – damit jede Recherche dort importierbar endet */
+function projectInstructions() {
+  return `Dieses Projekt gehört zu meiner App „Lebenshub“ (Termine, Routinen, Arbeit, Finanzen, Gesundheit). Antworte auf Deutsch.
+Wenn Ergebnisse in den Hub gehören (Termine, Fristen, Stellen, Kontostände, Ideen, Aufgaben, Gesundheitsinfos), hänge am Ende deiner Antwort einen Import-Block an:
+${aboFormat()}
+Ohne aktuelle Hub-Daten keine update_/delete_-Aktionen – dann nur add_entry/add_routine.`;
+}
+document.addEventListener('input', e => { if (e.target.id === 'chatIn') { chatDraft = e.target.value; e.target.style.height = 'auto'; e.target.style.height = Math.min(120, e.target.scrollHeight) + 'px'; } });
 document.addEventListener('keydown', e => { if (e.target.id === 'chatIn' && e.key === 'Enter' && !e.shiftKey && !/iphone|ipad|android/i.test(navigator.userAgent)) { e.preventDefault(); sendChat(e.target.value); } });
 document.addEventListener('change', async e => {
   if (e.target.id !== 'chatFile' || !e.target.files.length) return;
@@ -229,3 +348,11 @@ document.addEventListener('change', async e => {
   for (const f of fl) chatFiles.push(f.type.startsWith('image/') || /\.hei[cf]$/i.test(f.name) ? await normImage(f) : f);
   render();
 });
+function aboCard() {
+  return `<section class="card"><h2>Claude-Abo nutzen</h2>
+    <div class="hint">Recherchen und Auswertungen über dein Claude-Abo kosten nichts extra. So geht's:<br>
+    1. Im Assistenten „Modus: Claude-Abo“ wählen – Nachricht wird samt Hub-Daten kopiert und Claude geöffnet.<br>
+    2. Für Recherchen in claude.ai ein Projekt „Lebenshub“ anlegen und diese Anweisung einfügen – dann endet jede Antwort mit einem Import-Block.<br>
+    3. Antwort in Claude kopieren und im Assistenten „Antwort einfügen“ tippen.</div>
+    <div class="btns"><button class="btn" data-act="cproj">Projekt-Anweisung kopieren</button><button class="btn ghost" data-act="cpaste2">Antwort aus Claude einfügen</button></div></section>`;
+}
