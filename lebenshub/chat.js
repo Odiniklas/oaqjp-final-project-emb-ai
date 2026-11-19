@@ -195,6 +195,7 @@ async function sendArt(text) {
   const snap = JSON.stringify(S), actions = [];
   const turn = { files: files.map(f => ({ id: uid(), name: f.name, type: f.type || '', size: f.size, added: H.today(), blob: f })), stored: false };
   let reply = '', err = false;
+  for (const f of turn.files) { f.area = 'work'; try { await DB.put(f); } catch (e) { actions.push('⚠︎ ' + f.name + ': ' + e.message); f.failed = true; } }
   try {
     let extra = '', images = [];
     for (const f of turn.files) {
@@ -214,8 +215,8 @@ async function sendArt(text) {
       onText: ({ text: tx }) => { chatStream = tx; showStream(); }
     });
     reply = res.text.trim();
-    for (const f of turn.files) { if (!f.area) f.area = 'work'; try { await DB.put(f); } catch (e) { actions.push('⚠︎ ' + f.name + ': ' + e.message); } }
-    if (turn.files.length && !turn.stored) actions.push('📎 ' + turn.files.length + ' Datei(en) unter Arbeit → Dokumente abgelegt');
+    for (const f of turn.files) { if (turn.stored && !f.failed) { try { await DB.put(f); } catch (e) { /* bleibt unter Arbeit */ } } }
+    if (turn.files.some(f => !f.failed) && !turn.stored) actions.push('📎 ' + turn.files.filter(f => !f.failed).length + ' Datei(en) unter Arbeit → Dokumente abgelegt');
   } catch (e) { reply = (e && e.text) || sampleErr(e); err = !(e && e.text); }
   chatCtl = null; chatStream = ''; viaVoice = false;
   finishTurn(reply, actions, snap, err, 0);
@@ -419,7 +420,13 @@ document.addEventListener('keydown', e => { if (e.target.id === 'chatIn' && e.ke
 document.addEventListener('change', async e => {
   if (e.target.id !== 'chatFile' || !e.target.files.length) return;
   const fl = Array.from(e.target.files); e.target.value = '';
-  for (const f of fl) chatFiles.push(f.type.startsWith('image/') || /\.hei[cf]$/i.test(f.name) ? await normImage(f) : f);
+  const big = fl.filter(f => /\.(zip|docx|xlsx|pptx)$/i.test(f.name)), rest = fl.filter(f => !big.includes(f));
+  if (big.length) {
+    const n = await addFiles(big, 'work');
+    CHAT.push({ role: 'assistant', local: true, at: Date.now(), text: n ? n + ' Datei(en) aus ' + big.map(f => f.name).join(', ') + ' entpackt und unter „Dokumente“ gespeichert (Arbeit, Finanzen, Gesundheit). Tippe dort auf „Alle analysieren & eintragen“ – oder sag mir hier, worauf ich achten soll.' : 'Aus ' + big.map(f => f.name).join(', ') + ' konnte nichts gespeichert werden.' });
+    saveChat(); render();
+  }
+  for (const f of rest) chatFiles.push(f.type.startsWith('image/') || /\.hei[cf]$/i.test(f.name) ? await normImage(f) : f);
   render();
 });
 function aboCard() {

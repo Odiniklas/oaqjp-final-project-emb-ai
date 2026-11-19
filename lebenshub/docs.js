@@ -46,7 +46,7 @@ function docsCard(area) {
   const rows = L.map(d => `<div class="row"><button class="t" data-act="dopen" data-id="${d.id}">${esc(d.analysis && d.analysis.title ? d.analysis.title : d.name)}<small>${esc(d.name)} · ${H.fdy(d.added)} · ${fsize(d.size)}</small></button>${d.analysis ? '<span class="chip">analysiert</span>' : ''}</div>`).join('')
     || '<div class="empty">Noch keine Dokumente.</div>';
   return `<section class="card"><h2>Dokumente<small>${L.length}</small></h2><div class="hint">PDFs, Fotos oder Textdateien. ${ART.db ? 'Privat bei Claude gespeichert, lesbar für deine Claude-Jobs' : 'Werden nur auf diesem Gerät gespeichert'}${canAnalyze() ? ' – Claude kann sie analysieren' : ''}.</div>${rows}
-    <div class="btns"><button class="btn" data-act="dadd" data-v="${area}">+ Dokumente / Fotos</button></div></section>`;
+    <div class="btns"><button class="btn" data-act="dadd" data-v="${area}">+ Dokumente / ZIP</button>${canAnalyze() && L.some(d => !d.analysis) ? `<button class="btn ghost" data-act="dall" data-v="${area}">Alle analysieren &amp; eintragen (${L.filter(d => !d.analysis).length})</button>` : ''}</div></section>`;
 }
 function keyCard() {
   const k = getKey();
@@ -73,16 +73,47 @@ async function normImage(file) {
     return blob ? new File([blob], file.name.replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg' }) : file;
   } catch (e) { return file; } finally { URL.revokeObjectURL(url); }
 }
-async function addFiles(files) {
+async function addFiles(files, areaDefault) {
   let n = 0, last = null;
-  for (const f0 of files) {
+  const ex = await expandFiles(files, m => toast(m));
+  for (const it of ex.items) {
+    const f0 = it.file;
     const f = f0.type.startsWith('image/') || /\.hei[cf]$/i.test(f0.name) ? await normImage(f0) : f0;
-    const d = { id: uid(), name: f.name || 'Dokument', type: f.type || '', size: f.size, area: docArea, added: H.today(), blob: f };
+    const d = { id: uid(), name: f.name || 'Dokument', type: f.type || '', size: f.size, area: it.from ? (it.area || docArea) : (areaDefault || docArea), added: H.today(), blob: f, ...(it.from ? { from: it.from } : {}) };
+    if (ex.items.length > 3) toast('Speichere ' + (n + 1) + '/' + ex.items.length + ' …');
     try { await DB.put(d); if (!ART.db) DOCS.push(meta(d)); else DOCS = DOCS.filter(x => x.id !== d.id).concat([Object.assign(meta(d), { id: d.id })]); n++; last = d.id; } catch (e) { toast(e.message || 'Speichern fehlgeschlagen'); }
   }
   render();
-  if (n) toast(n === 1 ? 'Dokument gespeichert' : n + ' Dokumente gespeichert');
+  if (n || ex.skipped.length) toast((n ? (n === 1 ? 'Dokument gespeichert' : n + ' Dokumente gespeichert') : 'Nichts gespeichert') + (ex.skipped.length ? ' · übersprungen: ' + ex.skipped.slice(0, 4).join(', ') + (ex.skipped.length > 4 ? ' …' : '') : ''));
   if (n === 1) openDoc(last);
+  return n;
+}
+/* Alle noch nicht analysierten Dokumente nacheinander auswerten und Vorschläge eintragen (ohne Dubletten) */
+let batchRun = false;
+async function analyzeAll(area) {
+  if (batchRun) return;
+  const todo = DOCS.filter(d => !d.analysis && (!area || d.area === area));
+  if (!todo.length) return toast('Alles ist schon analysiert.');
+  batchRun = true; busy(true);
+  const snap = JSON.stringify(S), labels = []; let done = 0;
+  try {
+    for (const m of todo) {
+      toast('Analysiere ' + (done + 1) + '/' + todo.length + ': ' + m.name);
+      let full;
+      try { full = await DB.get(m.id); } catch (e) { labels.push('⚠︎ ' + m.name + ': ' + e.message); continue; }
+      let a;
+      try { a = await analyzeDoc(full); } catch (e) { labels.push('⚠︎ ' + m.name + ': ' + e.message); if (/Nutzungslimit|zu viele|nicht erlaubt/i.test(e.message)) break; continue; }
+      a.entries.forEach(e => {
+        const L = S.lists[e.list] || [];
+        if (L.some(x => x.n.trim().toLowerCase() === e.title.trim().toLowerCase())) { e.done = true; return; }
+        try { labels.push(runTool('add_entry', { list: e.list, title: e.title, note: e.note, date: e.date }, { files: [] }).label); e.done = true; } catch (er) { /* egal */ }
+      });
+      full.analysis = a; m.analysis = a; await persistMeta(m); done++;
+    }
+  } finally { batchRun = false; busy(false); }
+  S.jobLog = [{ source: 'Dokument-Analyse', at: new Date().toISOString(), summary: done + ' von ' + todo.length + ' Dokument(en) ausgewertet', labels }].concat(S.jobLog || []).slice(0, 30);
+  if (typeof undoSnap !== 'undefined') undoSnap = null;
+  save(done + ' Dokument(e) ausgewertet, ' + labels.filter(l => !l.startsWith('⚠')).length + ' Einträge übernommen');
 }
 
 /* ---------- Analyse mit Claude ---------- */
@@ -269,6 +300,7 @@ function busy(on) { document.body.classList.toggle('busy', on); }
 function docAct(act, b) {
   if (act === 'dadd') { docArea = b.dataset.v; $('docFile').click(); return true; }
   if (act === 'dopen') { openDoc(b.dataset.id); return true; }
+  if (act === 'dall') { analyzeAll(b.dataset.v); return true; }
   if (act === 'keysave') {
     const v = ($('apikey').value || '').trim();
     if (!/^sk-ant-/.test(v)) { toast('Das sieht nicht nach einem Anthropic-API-Schlüssel aus (beginnt mit „sk-ant-“).'); return true; }

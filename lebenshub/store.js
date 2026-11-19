@@ -108,7 +108,7 @@ async function artPutDoc(d) {
     const type = d.type || (/\.pdf$/i.test(d.name) ? 'application/pdf' : /\.(txt|md)$/i.test(d.name) ? 'text/plain' : /\.csv$/i.test(d.name) ? 'text/csv' : '');
     if (!ART_TYPES.test(type)) throw new Error('„' + d.name + '“: Dieses Format kann nicht gespeichert werden. Bitte als PDF, Foto oder Text sichern.');
     const r = await ART.assets.upload(d.blob, { type });
-    m.assetId = r.id; m.type = type; BLOBS[d.id] = d.blob;
+    m.assetId = r.id; m.type = type; d.assetId = r.id; d.type = type; BLOBS[d.id] = d.blob;
   }
   delete m.id;
   await ART.db.doc('docs/' + d.id).set(JSON.parse(JSON.stringify(m)));
