@@ -24,10 +24,13 @@ const C = [
   { k: 'b', tab: 'work', title: 'Bewerbungen', st: BW },
   { k: 'a', tab: 'work', title: 'Eigene Arbeit', st: ['Läuft', 'Geplant', 'Fertig'] },
   { k: 'u', tab: 'work', title: 'Startups & Ideen', st: ['Idee', 'Validierung', 'Zurückgestellt'] },
+  { k: 'k', tab: 'money', title: 'Konten & Depots', date: 1, hint: 'Konto/Depot mit Stand im Feld „Notiz / Wert“, Datum = Stichtag. Keine IBAN oder Kontonummern.' },
+  { k: 'z', tab: 'money', title: 'Fixkosten & Abos', date: 1, hint: 'Betrag und Rhythmus als Notiz, Datum = nächste Fälligkeit oder Kündigungsfrist.' },
   { k: 'g', tab: 'money', title: 'Finanzen im Überblick', hint: 'Eigene Angaben, ohne Gewähr. Wert im Feld „Notiz / Wert“ eintragen.' },
   { k: 'i', tab: 'money', title: 'Startup-Beteiligungen', st: ['Beobachten', 'Prüfen', 'Investiert'] },
   { k: 'p', tab: 'money', title: 'Börse & Portfolio', st: ['Beobachten', 'Prüfen', 'Position'] },
   { k: 'h', tab: 'health', title: 'Gesundheitsdokumente', date: 1, hint: 'Titel und Fristen, z. B. „Impfpass“ oder „Vorsorge fällig“. Du wirst am Vortag erinnert.' },
+  { k: 'x', tab: 'health', title: 'Verletzungen & Beschwerden', st: ['Akut', 'In Behandlung', 'Heilt', 'Ausgeheilt'], dn: 1, date: 1, hint: 'Was, seit wann, Behandlung/Arzt als Notiz. Datum = nächster Termin.' },
   { k: 'v', tab: 'health', title: 'Versicherungen', date: 1, hint: 'Name und Fälligkeit/Kündigungsfrist. Policen-Nr. nicht nötig.' }
 ];
 
@@ -162,6 +165,7 @@ function viewSettings() {
     <label class="f" style="margin-top:8px">Standard-Uhrzeit (Routinen ohne Uhrzeit, Termin-Hinweise)<input type="time" id="defTime" value="${esc(s.defTime)}"></label>
     <div class="btns">${s.notify ? '<button class="btn ghost" data-act="notifoff">Ausschalten</button><button class="btn ghost" data-act="notiftest">Test senden</button>' : '<button class="btn" data-act="notifon">Aktivieren</button>'}</div>
     <div class="hint" style="margin-top:8px">Die App prüft beim Öffnen und solange sie läuft jede Minute. Auf Android (Chrome, installiert) zusätzlich im Hintergrund. ${ios ? 'Auf dem iPhone funktionieren Benachrichtigungen nur, wenn die App über „Teilen → Zum Home-Bildschirm“ installiert ist (iOS 16.4+).' : ''} Für zuverlässige Erinnerungen auch bei geschlossener App: Kalender-Export unten.</div></section>
+  ${typeof keyCard === 'function' ? keyCard() : ''}
   <section class="card"><h2>Kalender-Erinnerungen</h2><div class="hint">Exportiert alle Routinen als wiederkehrende Termine (mit Alarm) und alle datierten Einträge als Ganztagstermine (Alarm am Vortag). In Apple-/Google-Kalender importieren – dann erinnert dich dein Handy immer, auch ohne geöffnete App. Nach Änderungen neu exportieren.</div><div class="btns"><button class="btn" data-act="ics">Kalenderdatei (.ics) exportieren</button></div></section>
   <section class="card"><h2>App</h2>
     ${standalone ? '<div class="kv"><span>Installation</span><span>installiert ✓</span></div>' : installEvt ? '<div class="btns" style="margin-top:0"><button class="btn" data-act="install">Als App installieren</button></div>' : `<div class="hint">${ios ? 'Installieren: in Safari auf „Teilen“ tippen → „Zum Home-Bildschirm“.' : 'Installieren: im Browser-Menü „App installieren“ bzw. „Zum Startbildschirm hinzufügen“ wählen.'}</div>`}
@@ -181,7 +185,7 @@ function render() {
   if (TAB === 'today') h = viewToday();
   else if (TAB === 'routines') h = viewRoutines();
   else if (TAB === 'settings') h = viewSettings();
-  else h = C.filter(c => c.tab === TAB).map(c => listCard(c)).join('');
+  else h = C.filter(c => c.tab === TAB).map(c => listCard(c)).join('') + (typeof docsCard === 'function' ? docsCard(TAB) : '');
   $('body').innerHTML = h;
   if (TAB === 'settings') $('theme').value = S.settings.theme;
   if (S.settings.theme === 'auto') delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = S.settings.theme;
@@ -326,17 +330,32 @@ function icsText() {
   L.push('END:VCALENDAR');
   return L.join('\r\n') + '\r\n';
 }
+function mergeData(d) {
+  let n = 0;
+  C.forEach(c => (d.lists[c.k] || []).forEach(it => {
+    const L = S.lists[c.k], i = L.findIndex(x => x.id === it.id || x.n === it.n);
+    if (i >= 0) L[i] = Object.assign({}, L[i], it, { id: L[i].id }); else { L.push(it); n++; }
+  }));
+  d.routines.forEach(r => {
+    const i = S.routines.findIndex(x => x.id === r.id || (x.claude && r.claude && x.claude.key === r.claude.key) || x.n === r.n);
+    if (i >= 0) S.routines[i] = Object.assign({}, r, { id: S.routines[i].id, last: S.routines[i].last || r.last, hist: S.routines[i].hist && S.routines[i].hist.length ? S.routines[i].hist : r.hist });
+    else { S.routines.push(r); n++; }
+  });
+  return n;
+}
 function importBackup(file) {
   const rd = new FileReader();
   rd.onload = () => {
-    try {
-      const d = JSON.parse(rd.result);
-      if (!d || !d.lists || !Array.isArray(d.routines)) throw new Error('kein Lebenshub-Backup');
-      if (!confirm('Backup einspielen? Die aktuellen Daten auf diesem Gerät werden ersetzt.')) return;
-      S = d; S.settings = Object.assign({ notify: false, defTime: '08:00', theme: 'auto' }, S.settings || {});
-      C.forEach(c => { if (!S.lists[c.k]) S.lists[c.k] = []; });
-      save('Backup eingespielt');
-    } catch (e) { toast('Import fehlgeschlagen: ' + e.message); }
+    let d;
+    try { d = JSON.parse(rd.result); if (!d || !d.lists || !Array.isArray(d.routines)) throw new Error('kein Lebenshub-Backup'); }
+    catch (e) { return toast('Import fehlgeschlagen: ' + e.message); }
+    const replace = () => { const st = S.settings; S = d; S.settings = Object.assign({}, st); C.forEach(c => { if (!S.lists[c.k]) S.lists[c.k] = []; }); save('Daten ersetzt'); };
+    if (isEmpty()) return replace();
+    openDlg(`<h3>Daten importieren</h3><div class="hint"><b>Zusammenführen</b>: Neue Einträge kommen dazu, gleichnamige werden aktualisiert, deine Häkchen bleiben erhalten.<br><b>Ersetzen</b>: Alles auf diesem Gerät wird durch die Datei ersetzt.</div>
+      <div class="btns"><button class="btn" value="merge">Zusammenführen</button><button class="btn warn" value="replace" formnovalidate>Ersetzen</button><button class="btn ghost" value="cancel" formnovalidate>Abbrechen</button></div>`, v => {
+      if (v === 'replace') return replace();
+      const n = mergeData(d); save(n + ' neue Einträge übernommen');
+    });
   };
   rd.readAsText(file);
 }
@@ -363,6 +382,7 @@ document.addEventListener('click', e => {
     case 'export': download('lebenshub-backup-' + t + '.json', 'application/json', JSON.stringify(S, null, 1)); break;
     case 'import': $('importFile').click(); break;
     case 'reset': if (confirm('Wirklich alle Daten auf diesem Gerät löschen? Mach vorher ein Backup.')) { const st = S.settings; S = seed(); S.settings = st; save('Zurückgesetzt'); } break;
+    default: if (typeof docAct === 'function') docAct(act, b); break;
     case 'install': if (installEvt) { installEvt.prompt(); installEvt.userChoice.finally(() => { installEvt = null; render(); }); } break;
   }
 });
@@ -389,6 +409,7 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) { re
 setInterval(tick, 60 * 1000);
 
 render();
+if (typeof loadDocs === 'function') loadDocs().then(render);
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   navigator.serviceWorker.register('sw.js').then(() => syncData()).then(checkNotify).catch(() => {});
 }

@@ -1,7 +1,7 @@
 /* Lebenshub Service Worker: Offline-Betrieb + Erinnerungen im Hintergrund */
 importScripts('sched.js');
-const V = 'lebenshub-shell-v2';
-const ASSETS = ['./', 'index.html', 'styles.css', 'app.js', 'sched.js', 'manifest.webmanifest', 'icon.svg', 'icon-180.png', 'icon-192.png', 'icon-512.png'];
+const V = 'lebenshub-shell-v3';
+const ASSETS = ['./', 'index.html', 'styles.css', 'app.js', 'docs.js', 'sched.js', 'manifest.webmanifest', 'icon.svg', 'icon-180.png', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(V).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));
