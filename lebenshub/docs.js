@@ -115,8 +115,7 @@ ${lists.map(c => `  ${c.k} = ${c.title}`).join('\n')}
   Für Kontostände/Depotwerte: Liste „Konten & Depots“, Wert und Stichtag in note. Für Fristen und Termine ein Datum setzen.
 Regeln: Nur übernehmen, was im Dokument steht – nichts erfinden. Datum als JJJJ-MM-TT, sonst leerer String. Keine IBAN, Konto-, Depot-, Versicherungs- oder Kundennummern übernehmen. Leere Listen, wenn nichts passt. Heute ist der ${H.today()}.`;
 
-  const { default: Anthropic } = await import(SDK_URL);
-  const client = new Anthropic({ apiKey: key, dangerouslyAllowBrowser: true });
+  const { client, A } = await claude();
   let res;
   try {
     res = await client.beta.messages.create({
@@ -128,15 +127,7 @@ Regeln: Nur übernehmen, was im Dokument steht – nichts erfinden. Datum als JJ
       system,
       messages: [{ role: 'user', content: [block, { type: 'text', text: 'Dateiname: ' + d.name + '\nBitte analysieren.' }] }]
     });
-  } catch (e) {
-    if (e instanceof Anthropic.AuthenticationError) throw new Error('Der API-Schlüssel ist ungültig.');
-    if (e instanceof Anthropic.PermissionDeniedError) throw new Error('Der API-Schlüssel hat keine Berechtigung (Guthaben/Abrechnung in der Console prüfen).');
-    if (e instanceof Anthropic.RateLimitError) throw new Error('Zu viele Anfragen – bitte gleich noch einmal versuchen.');
-    if (e instanceof Anthropic.BadRequestError) throw new Error('Anfrage abgelehnt: ' + (e.message || 'unbekannter Fehler'));
-    if (e instanceof Anthropic.APIConnectionError) throw new Error('Keine Verbindung zu Claude. Bist du online?');
-    if (e instanceof Anthropic.APIError) throw new Error('Claude ist gerade nicht erreichbar (' + (e.status || '?') + ').');
-    throw e;
-  }
+  } catch (e) { throw new Error(errText(e, A)); }
   if (res.stop_reason === 'refusal') throw new Error('Claude hat die Analyse dieses Dokuments abgelehnt.');
   if (res.stop_reason === 'max_tokens') throw new Error('Die Antwort war zu lang – bitte das Dokument aufteilen.');
   const txt = res.content.filter(b => b.type === 'text').map(b => b.text).join('');
@@ -144,6 +135,23 @@ Regeln: Nur übernehmen, was im Dokument steht – nichts erfinden. Datum als JJ
   out.entries = (out.entries || []).filter(x => lists.some(c => c.k === x.list)).map(x => Object.assign(x, { date: /^\d{4}-\d{2}-\d{2}$/.test(x.date) ? x.date : '' }));
   out.at = new Date().toISOString();
   return out;
+}
+
+/* Gemeinsamer Claude-Zugang für Dokumente und Assistent */
+async function claude() {
+  const key = getKey();
+  if (!key) throw new Error('Bitte zuerst unter ⚙︎ einen API-Schlüssel hinterlegen.');
+  const { default: A } = await import(SDK_URL);
+  return { client: new A({ apiKey: key, dangerouslyAllowBrowser: true }), A };
+}
+function errText(e, A) {
+  if (e instanceof A.AuthenticationError) return 'Der API-Schlüssel ist ungültig.';
+  if (e instanceof A.PermissionDeniedError) return 'Der API-Schlüssel hat keine Berechtigung (Guthaben/Abrechnung in der Console prüfen).';
+  if (e instanceof A.RateLimitError) return 'Zu viele Anfragen – bitte gleich noch einmal versuchen.';
+  if (e instanceof A.BadRequestError) return 'Anfrage abgelehnt: ' + (e.message || 'unbekannter Fehler');
+  if (e instanceof A.APIConnectionError) return 'Keine Verbindung zu Claude. Bist du online?';
+  if (e instanceof A.APIError) return 'Claude ist gerade nicht erreichbar (' + (e.status || '?') + ').';
+  return e && e.message ? e.message : String(e);
 }
 
 /* ---------- Dokument-Dialog ---------- */

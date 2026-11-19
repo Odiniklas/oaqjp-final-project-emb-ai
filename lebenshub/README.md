@@ -9,6 +9,7 @@ Installierbare Web-App (PWA). Läuft offline, alle Daten bleiben lokal auf dem G
 - **Arbeit, Finanzen, Gesundheit**: alle Listen aus dem Artefakt; Einträge antippen zum Bearbeiten (Titel, Notiz/Wert, Datum, Status)
 - **Dokumente** (Arbeit, Finanzen, Gesundheit): PDFs, Fotos, Screenshots oder Textdateien hinzufügen (mehrere auf einmal, auch direkt mit der Kamera). Gespeichert nur lokal auf dem Gerät (IndexedDB), nicht im JSON-Backup
 - **KI-Analyse mit Claude** (optional): mit eigenem API-Schlüssel von console.anthropic.com. Claude fasst das Dokument zusammen, nennt die wichtigsten Fakten und schlägt Einträge vor (z. B. Kontostand → „Konten & Depots“, Frist → Termin), die du auswählst und übernimmst. Das Dokument wird nur beim Tippen auf „Analysieren“ an Anthropic gesendet. Das SDK liegt lokal unter `vendor/` (MIT-Lizenz)
+- **Assistent** (Tab „Assistent“, mit API-Schlüssel): Chat per Text oder Sprache (🎤, sonst Tastatur-Diktat), Antworten optional vorlesen. Claude kennt die Hub-Daten und trägt Erzähltes und angehängte Dokumente/Fotos selbst in die passenden Listen, Routinen und Dokumentablagen ein; jede Änderung ist mit „Rückgängig“ zurücknehmbar
 - **Neue Listen**: Konten & Depots, Fixkosten & Abos, Verletzungen & Beschwerden
 - **Import**: Zusammenführen (neue Einträge dazu, Häkchen bleiben) oder Ersetzen
 - **Erinnerungen**: Push-Benachrichtigungen für fällige Routinen und Termine (heute/morgen), App-Badge mit Anzahl offener Routinen

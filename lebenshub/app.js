@@ -11,9 +11,10 @@ const ICON = {
   routines: '<path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/>',
   work: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/>',
   money: '<path d="M18 7.5A6.5 6.5 0 1 0 18 16.5"/><path d="M4 10.5h9M4 13.5h9"/>',
+  chat: '<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/>',
   health: '<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8z"/>'
 };
-const TABS = [['today', 'Heute'], ['routines', 'Routinen'], ['work', 'Arbeit'], ['money', 'Finanzen'], ['health', 'Gesundheit']];
+const TABS = [['today', 'Heute'], ['chat', 'Assistent'], ['routines', 'Routinen'], ['work', 'Arbeit'], ['money', 'Finanzen'], ['health', 'Gesundheit']];
 const BW = ['Entwurf', 'Versandt', 'Termin', 'Stand prüfen', 'Absage'];
 
 /* Listen-Definitionen. Inhalte kommen per Import (Startdaten/Backup) oder werden in der App angelegt. */
@@ -185,6 +186,7 @@ function render() {
   if (TAB === 'today') h = viewToday();
   else if (TAB === 'routines') h = viewRoutines();
   else if (TAB === 'settings') h = viewSettings();
+  else if (TAB === 'chat') h = typeof viewChat === 'function' ? viewChat() : '';
   else h = C.filter(c => c.tab === TAB).map(c => listCard(c)).join('') + (typeof docsCard === 'function' ? docsCard(TAB) : '');
   $('body').innerHTML = h;
   if (TAB === 'settings') $('theme').value = S.settings.theme;
@@ -382,7 +384,7 @@ document.addEventListener('click', e => {
     case 'export': download('lebenshub-backup-' + t + '.json', 'application/json', JSON.stringify(S, null, 1)); break;
     case 'import': $('importFile').click(); break;
     case 'reset': if (confirm('Wirklich alle Daten auf diesem Gerät löschen? Mach vorher ein Backup.')) { const st = S.settings; S = seed(); S.settings = st; save('Zurückgesetzt'); } break;
-    default: if (typeof docAct === 'function') docAct(act, b); break;
+    default: if (typeof docAct === 'function' && docAct(act, b)) break; if (typeof chatAct === 'function') chatAct(act, b); break;
     case 'install': if (installEvt) { installEvt.prompt(); installEvt.userChoice.finally(() => { installEvt = null; render(); }); } break;
   }
 });
