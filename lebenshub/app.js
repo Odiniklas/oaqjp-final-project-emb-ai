@@ -142,7 +142,7 @@ function viewToday() {
   const doneT = S.routines.filter(r => r.last === t && !H.state(r, t).due);
   const total = due.length + doneT.length;
   const pct = total ? Math.round(doneT.length / total * 100) : 100;
-  let h = searchCard() + (typeof weatherCard === 'function' ? weatherCard() : '') + `<section class="card wide"><h2>Heute zu tun<small>${doneT.length} von ${total} erledigt</small></h2><div class="bar"><i style="width:${pct}%"></i></div>
+  let h = searchCard() + (typeof weatherCard === 'function' ? weatherCard() : '') + (typeof musicCard === 'function' ? musicCard() : '') + `<section class="card wide"><h2>Heute zu tun<small>${doneT.length} von ${total} erledigt</small></h2><div class="bar"><i style="width:${pct}%"></i></div>
     ${due.map(r => routineRow(r, t)).join('')}${doneT.map(r => routineRow(r, t)).join('')}
     ${!total ? '<div class="empty">Heute stehen keine Routinen an.</div>' : !due.length ? '<div class="empty">Alles erledigt. Gute Arbeit!</div>' : ''}</section>`;
 
@@ -189,13 +189,13 @@ function viewSettings() {
   const permTxt = { granted: 'erlaubt', denied: 'blockiert (in den Browser-/Systemeinstellungen freigeben)', default: 'noch nicht gefragt', unsupported: 'von diesem Browser nicht unterstützt' }[perm];
   const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
   const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
-  if (ART.on) return `${artSettingsCard()}
+  if (ART.on) return `${typeof odiCard === 'function' ? odiCard() : ''}${artSettingsCard()}
   <section class="card"><h2>Kalender-Erinnerungen</h2><div class="hint">Exportiert alle Routinen als wiederkehrende Termine (mit Alarm) und alle datierten Einträge als Ganztagstermine (Alarm am Vortag). In den iPhone-Kalender übernehmen – dann wirst du immer erinnert. Nach Änderungen neu exportieren.</div><div class="btns"><button class="btn" data-act="ics">Kalenderdatei (.ics) speichern</button></div></section>
   <section class="card"><h2>Design</h2><label class="f">Darstellung<select id="theme"><option value="auto">Automatisch</option><option value="light">Hell</option><option value="dark">Dunkel</option></select></label></section>
   <section class="card"><h2>Daten</h2><div class="hint">Dein Hub ist privat und nur für dich sichtbar. Backups enthalten Listen und Routinen, keine Dokumente.</div>
     <div class="btns"><button class="btn" data-act="export">Backup speichern</button><button class="btn ghost" data-act="import">Backup/Startdatei importieren</button></div>
     <div class="btns"><button class="btn warn" data-act="reset">Alle Daten löschen</button></div></section>`;
-  return `<section class="card"><h2>Erinnerungen</h2>
+  return `${typeof odiCard === 'function' ? odiCard() : ''}<section class="card"><h2>Erinnerungen</h2>
     <div class="kv"><span>Status</span><span>${s.notify && perm === 'granted' ? 'aktiv' : 'aus'}</span></div>
     <div class="kv"><span>Berechtigung</span><span>${permTxt}</span></div>
     <label class="f" style="margin-top:8px">Standard-Uhrzeit (Routinen ohne Uhrzeit, Termin-Hinweise)<input type="time" id="defTime" value="${esc(s.defTime)}"></label>
@@ -431,7 +431,7 @@ document.addEventListener('click', e => {
     case 'export': download('lebenshub-backup-' + t + '.json', 'application/json', JSON.stringify(S, null, 1)); break;
     case 'import': $('importFile').click(); break;
     case 'reset': askConfirm(ART.db ? 'Wirklich alle Hub-Daten löschen – auf allen Geräten? Mach vorher ein Backup.' : 'Wirklich alle Daten auf diesem Gerät löschen? Mach vorher ein Backup.', 'Alles löschen').then(ok => { if (ok) { const st = S.settings; S = seed(); S.settings = st; save('Zurückgesetzt'); } }); break;
-    default: if (typeof mailAct === 'function' && mailAct(act, b)) break; if (typeof healthAct === 'function' && healthAct(act, b)) break; if (typeof knowAct === 'function' && knowAct(act, b)) break; if (typeof finAct === 'function' && finAct(act, b)) break; if (typeof docAct === 'function' && docAct(act, b)) break; if (typeof chatAct === 'function') chatAct(act, b); break;
+    default: if (typeof musicAct === 'function' && musicAct(act, b)) break; if (typeof odiAct === 'function' && odiAct(act, b)) break; if (typeof mailAct === 'function' && mailAct(act, b)) break; if (typeof healthAct === 'function' && healthAct(act, b)) break; if (typeof knowAct === 'function' && knowAct(act, b)) break; if (typeof finAct === 'function' && finAct(act, b)) break; if (typeof docAct === 'function' && docAct(act, b)) break; if (typeof chatAct === 'function') chatAct(act, b); break;
     case 'install': if (installEvt) { installEvt.prompt(); installEvt.userChoice.finally(() => { installEvt = null; render(); }); } break;
   }
 });
@@ -466,6 +466,7 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) { re
 setInterval(tick, 60 * 1000);
 
 render();
+if (typeof odiWake === 'function') odiWake();
 if (typeof artInit === 'function') artInit();
 if (typeof loadDocs === 'function') loadDocs().then(render);
 if ('serviceWorker' in navigator && location.protocol !== 'file:' && !window.claude) {

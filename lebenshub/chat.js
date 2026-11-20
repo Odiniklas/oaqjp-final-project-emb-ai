@@ -170,7 +170,7 @@ async function sendChat(text) {
       let res;
       try {
         res = await client.beta.messages.create({ ...baseParams(), max_tokens: 4000, cache_control: { type: 'ephemeral' },
-          output_config: { effort: 'low' }, system: [{ type: 'text', text: SYS, cache_control: { type: 'ephemeral' } }], tools: tools(), messages: msgs });
+          output_config: { effort: 'low' }, system: [{ type: 'text', text: sysText(), cache_control: { type: 'ephemeral' } }], tools: tools(), messages: msgs });
       } catch (e) { throw new Error(errText(e, A)); }
       cost += track(res);
       msgs.push({ role: 'assistant', content: res.content });
@@ -208,7 +208,7 @@ async function sendArt(text) {
       catch (e) { extra += '\n[Anhang „' + f.name + '“ konnte nicht gelesen werden: ' + e.message + ']'; }
     }
     if (images.length) extra += '\n[' + Math.min(images.length, ART.imgMax) + ' Bild(er) angehängt]';
-    const turns = [{ role: 'user', content: SYS + '\nDie Werkzeuge sind Funktionen dieser App; rufe sie direkt auf.' }].concat(history(),
+    const turns = [{ role: 'user', content: sysText() + '\nDie Werkzeuge sind Funktionen dieser App; rufe sie direkt auf.' }].concat(history(),
       [{ role: 'user', content: hubSnapshot() + extra + '\n\n' + (text || 'Bitte auswerten und in den Hub übernehmen.') +
         (viaVoice || talkMode ? '\n\n(Per Sprache – Antwort wird vorgelesen: höchstens 2 kurze Sätze, keine Aufzählungen.)' : '') }]);
     chatCtl = new AbortController();
@@ -297,12 +297,21 @@ function undoLast() {
   saveChat(); save('Änderungen rückgängig gemacht');
 }
 
+/* ---------- Odi: Persönlichkeit & Stimme ---------- */
+function odi() { S.settings.odi = Object.assign({ on: true, name: 'Odi', sir: true, voice: '', rate: 1, pitch: 0.9 }, S.settings.odi || {}); return S.settings.odi; }
+function sysText() {
+  const o = odi();
+  if (!o.on) return SYS;
+  return SYS + `\nDu heißt ${o.name}. Persönlichkeit: ein souveräner, höflicher KI-Butler mit britischer Gelassenheit und feinem, trockenem Humor – präzise, vorausschauend, nie unterwürfig. Ein eigener Charakter, kein bestimmter Film-Charakter.${o.sir ? ' Sprich den Nutzer gelegentlich mit „Sir“ an.' : ''} Bleib auf Deutsch und kurz.`;
+}
 /* ---------- Sprache ---------- */
 let voice = null;
+function deVoices() { try { return speechSynthesis.getVoices().filter(v => /^(de|en-GB)([-_]|$)/i.test(v.lang)); } catch (e) { return []; } }
 function pickVoice() {
   try {
-    const vs = speechSynthesis.getVoices().filter(v => /^de([-_]|$)/i.test(v.lang));
-    voice = vs.find(v => /premium|enhanced|erweitert/i.test(v.name)) || vs.find(v => /Anna|Helena|Petra|Markus|Yannick|Martin/i.test(v.name)) || vs.find(v => v.localService) || vs[0] || null;
+    const all = deVoices(), want = odi().voice, de = all.filter(v => /^de/i.test(v.lang));
+    voice = (want && all.find(v => v.name === want)) || de.find(v => /premium|enhanced|erweitert/i.test(v.name) && /Markus|Yannick|Martin|Viktor|Helmut/i.test(v.name))
+      || de.find(v => /Markus|Yannick|Martin|Viktor|Helmut/i.test(v.name)) || de.find(v => /premium|enhanced|erweitert/i.test(v.name)) || de.find(v => v.localService) || de[0] || null;
   } catch (e) { voice = null; }
 }
 try { pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; } catch (e) { /* egal */ }
@@ -311,11 +320,11 @@ function unlockTts() { // iOS: Sprachausgabe muss einmal durch eine Berührung f
   try { const u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); } catch (e) { /* egal */ }
 }
 function speak(t, thenListen) {
-  if (ART.tts) { ART.tts.speak(t.replace(/[*#_`>|]/g, '').slice(0, 1900)).then(() => { if (thenListen && talkMode) setTimeout(listen, 300); }).catch(() => {}); return; }
+  if (ART.tts && !odi().voice && !deVoices().length) { ART.tts.speak(t.replace(/[*#_`>|]/g, '').slice(0, 1900), { voice: 'rounded' }).then(() => { if (thenListen && talkMode) setTimeout(listen, 300); }).catch(() => {}); return; }
   try {
     speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(t.replace(/[*#_`>|]/g, '').replace(/\n+/g, '. ').slice(0, 1200));
-    u.lang = 'de-DE'; if (voice) u.voice = voice; u.rate = 1.05;
+    pickVoice(); u.lang = voice ? voice.lang : 'de-DE'; if (voice) u.voice = voice; u.rate = +odi().rate || 1; u.pitch = +odi().pitch || 1;
     if (thenListen) u.onend = () => { if (talkMode) setTimeout(listen, 300); };
     speechSynthesis.speak(u);
   } catch (e) { if (thenListen && talkMode) listen(); }
@@ -364,7 +373,7 @@ function viewChat() {
   const last = CHAT[CHAT.length - 1];
   const msgs = CHAT.map((m, i) => `<div class="msg ${m.role}${m.err ? ' err' : ''}">${m.text ? `<div>${fmtText(m.text)}</div>` : ''}${m.files && m.files.length ? `<small>📎 ${m.files.map(esc).join(', ')}</small>` : ''}${m.actions && m.actions.length ? `<ul class="acts">${m.actions.map(a => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}${m.aboWait && i === CHAT.length - 1 ? '<button class="btn" data-act="cpaste">Antwort einfügen</button>' : ''}${i === CHAT.length - 1 && undoSnap && !m.undone ? '<button class="chip" data-act="cundo">Rückgängig</button>' : ''}${m.undone ? '<small>rückgängig gemacht</small>' : ''}${m.cost ? `<small class="cost">≈ ${fusd(m.cost)}</small>` : ''}${m.via === 'abo' ? '<small class="cost">über Claude-Abo</small>' : ''}</div>`).join('')
     || `<div class="hint">${abo ? 'Abo-Modus: Schreib oder sprich deine Nachricht, tippe „In Claude öffnen“, füge sie in Claude ein und hol die Antwort mit „Antwort einfügen“ zurück. Ideal für Recherchen – ohne API-Kosten.' : 'Erzähl mir, was ansteht – oder häng ein Dokument/Foto an. Ich trage alles ein. Zum Beispiel: „Dienstag 10 Uhr Physio wegen dem Knie“, „Depot steht bei 22.000 €“ oder „Was steht diese Woche an?“. Mit 🎙 führst du ein Gespräch per Sprache.'}</div>`;
-  return `<section class="card wide chat"><h2>Assistent<small class="chips">
+  return `<section class="card wide chat"><h2>${odi().on ? esc(odi().name) : 'Assistent'}<small class="chips">
       <button class="chip ${abo ? '' : 'd'}" data-act="cmode" data-v="${abo ? 'api' : 'abo'}">${abo ? 'Modus: Claude-Abo' : 'Modus: API'}</button>
       ${!abo ? `<button class="chip ${talkMode ? 'due' : 'd'}" data-act="ctalk">${talkMode ? '🎙 Gespräch läuft' : '🎙 Gespräch'}</button><button class="chip ${speakOn ? '' : 'd'}" data-act="ctts">${speakOn ? '🔊 an' : '🔈 aus'}</button>` : '<button class="chip d" data-act="cpaste">📋 Antwort einfügen</button>'}
       ${CHAT.length ? '<button class="chip d" data-act="cclear">Leeren</button>' : ''}</small></h2>
@@ -382,7 +391,7 @@ function viewChatArt() {
   const msgs = CHAT.filter(m => !m.local).map((m, i, a) => msgHtml(m, i === a.length - 1 ? CHAT.length - 1 : -1)).join('')
     || '<div class="hint">Erzähl mir, was ansteht, oder häng ein Foto/PDF an – ich trage alles in deinen Hub ein. Zum Beispiel: „Dienstag 10 Uhr Physio wegen dem Knie“, „Depot steht bei 22.000 €“ oder „Was steht diese Woche an?“ Läuft über dein Claude-Abo.</div>';
   const voice = ART.dictation || !ART.on;
-  return `<section class="card wide chat"><h2>Assistent<small class="chips">
+  return `<section class="card wide chat"><h2>${odi().on ? esc(odi().name) : 'Assistent'}<small class="chips">
       ${ART.dictation ? `<button class="chip ${talkMode ? 'due' : 'd'}" data-act="ctalk">${talkMode ? '🎙 Gespräch läuft' : '🎙 Gespräch'}</button>` : ''}
       <button class="chip ${speakOn ? '' : 'd'}" data-act="ctts">${speakOn ? '🔊 Vorlesen an' : '🔈 Vorlesen aus'}</button>
       ${CHAT.length ? '<button class="chip d" data-act="cclear">Leeren</button>' : ''}</small></h2>
@@ -442,3 +451,39 @@ function aboCard() {
     3. Antwort in Claude kopieren und im Assistenten „Antwort einfügen“ tippen.</div>
     <div class="btns"><button class="btn" data-act="cproj">Projekt-Anweisung kopieren</button><button class="btn ghost" data-act="cpaste2">Antwort aus Claude einfügen</button></div></section>`;
 }
+
+function odiCard() {
+  const o = odi(), vs = deVoices();
+  return `<section class="card"><h2>Assistent „${esc(o.name)}“</h2>
+    <div class="f2"><label class="f">Name<input type="text" id="odiName" value="${esc(o.name)}"></label>
+    <label class="f">Persönlichkeit<select id="odiOn"><option value="1" ${o.on ? 'selected' : ''}>KI-Butler (souverän, trockener Humor)</option><option value="0" ${o.on ? '' : 'selected'}>Neutral</option></select></label></div>
+    <label class="f">Stimme<select id="odiVoice"><option value="">Automatisch (männlich, deutsch)</option>${vs.map(v => `<option ${o.voice === v.name ? 'selected' : ''} value="${esc(v.name)}">${esc(v.name)} (${esc(v.lang)})</option>`).join('')}</select></label>
+    <div class="f2"><label class="f">Tempo <input type="range" id="odiRate" min="0.7" max="1.4" step="0.05" value="${o.rate}"></label><label class="f">Tonhöhe <input type="range" id="odiPitch" min="0.5" max="1.5" step="0.05" value="${o.pitch}"></label></div>
+    <label class="f"><span><input type="checkbox" id="odiSir" ${o.sir ? 'checked' : ''}> mit „Sir“ ansprechen</span></label>
+    <div class="btns"><button class="btn ghost" data-act="odiTest">Probe hören</button></div>
+    <div class="hint">Natürlicher klingt es mit einer „Erweitert“- oder „Premium“-Stimme: iPhone-Einstellungen → Bedienungshilfen → Gesprochene Inhalte → Stimmen → Deutsch (z. B. „Markus“ oder „Yannick“) laden. Aufruf per Siri: Kurzbefehl „Odi“, der den Lebenshub-Link mit <b>#odi</b> öffnet.</div></section>`;
+}
+document.addEventListener('change', e => {
+  const id = e.target.id; if (!/^odi/.test(id)) return;
+  const o = odi();
+  if (id === 'odiName') o.name = e.target.value.trim() || 'Odi';
+  if (id === 'odiOn') o.on = e.target.value === '1';
+  if (id === 'odiVoice') o.voice = e.target.value;
+  if (id === 'odiRate') o.rate = +e.target.value;
+  if (id === 'odiPitch') o.pitch = +e.target.value;
+  if (id === 'odiSir') o.sir = e.target.checked;
+  pickVoice(); save();
+});
+function odiAct(act) {
+  if (act === 'odiTest') { unlockTts(); speak((odi().sir ? 'Guten Tag, Sir. ' : 'Hallo. ') + 'Hier ist ' + odi().name + '. Alle Systeme laufen. Womit kann ich helfen?'); return true; }
+  return false;
+}
+/* Direktaufruf per Link …#odi (z. B. Siri-Kurzbefehl „Odi“) */
+function odiWake() {
+  if (location.hash !== '#odi') return;
+  TAB = 'chat'; speakOn = true;
+  const last = CHAT[CHAT.length - 1];
+  if (!last || !last.wake || Date.now() - last.at > 60000) CHAT.push({ role: 'assistant', local: true, wake: true, at: Date.now(), text: (odi().sir ? 'Ja, Sir?' : 'Ja?') + ' Ich höre – tippe aufs Mikrofon der Tastatur und sprich.' });
+  saveChat(); render(); setTimeout(() => { const i = $('chatIn'); if (i) i.focus(); }, 200);
+}
+window.addEventListener('hashchange', odiWake);

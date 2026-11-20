@@ -16,6 +16,8 @@ Installierbare Web-App (PWA). Läuft offline, alle Daten bleiben lokal auf dem G
 - **Apple Health ohne Zusatz-App**: iPhone-Kurzbefehl legt täglich eine Textdatei in Google Drive ab, der Hub liest sie beim Öffnen über den Google-Drive-Connector (siehe ANLEITUNG-APPLE-HEALTH.md)
 - **Posteingang (Gmail)**: ungelesene Mails der letzten Tage auf „Heute“, von Claude sortiert (wichtig, Kategorie, nächster Schritt, Frist), Vorschläge in Listen übernehmen, Antworten nur als Entwurf in Gmail; Assistent-Antworten per WhatsApp teilen (wa.me-Link)
 - **Wetter**: täglicher Claude-Job (Websuche) schreibt Vorhersage für 3 Tage plus Tipp über `set_weather`; Karte auf „Heute“
+- **Musik**: Claude stellt passend zur Stimmung (Training, Fokus, Entspannung, Gute Laune) und Tagesform 10 Songs zusammen, jeder öffnet sich in Apple Music oder Spotify
+- **Assistent „Odi“**: einstellbare Persönlichkeit (KI-Butler), Stimme, Tempo, Tonhöhe; Direktaufruf über den Link-Zusatz `#odi`, z. B. per Siri-Kurzbefehl „Hey Siri, Odi“ (siehe ANLEITUNG-HEY-ODI.md)
 - **Wissen**: Paper, Studien, Artikel, Videos, Notizen mit Zusammenfassung, Kernaussagen, Themen und Lesestatus; Dokumente lassen sich übernehmen, der Assistent speichert (`add_knowledge`) und liest (`get_knowledge`) Wissen; Ablage-Listen im selben Bereich
 - **Suche** über alle Listen, Routinen, Dokumente und Positionen; farbige Status (fehlt/prüfen/erledigt)
 - **Neue Listen**: Konten & Depots, Fixkosten & Abos, Verletzungen & Beschwerden
