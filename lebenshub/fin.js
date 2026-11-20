@@ -156,7 +156,7 @@ function finRangeChips() { return `<div class="fin-range">${FIN_RANGES.map(r => 
 function finPL(ps) { return ps.reduce((s, p) => { const q = posPL(p); return q ? { abs: s.abs + q.abs, cost: s.cost + posCost(p) } : s; }, { abs: 0, cost: 0 }); }
 function plChip(abs, base, label) { if (!base) return ''; const up = abs >= 0; return `<span class="fin-pill ${up ? 'pos' : 'neg'}"><b>${up ? '▲' : '▼'} ${pct(abs / base * 100).replace(/^[+-]/, '')}</b><small>${up ? '+' : '−'}${eur(Math.abs(abs))} · ${label}</small></span>`; }
 /* Thema einer Position (für die Aufteilung) */
-const FIN_THEMES = [['Technologie & KI', /tech|informat|ai\b|künstl|disrupt|digital|robot|semicond/i], ['Schwellenländer', /\bem\b|emerging|schwellen/i], ['Gold & Rohstoffe', /gold|silber|rohstoff|commod/i], ['Wasser & Umwelt', /water|wasser|clean|umwelt|energy/i], ['Welt (breit)', /world|welt|acwi|all.?country/i]];
+const FIN_THEMES = [['Krypto', /bitcoin|ethereum|cardano|\bxrp\b|solana|krypto|crypto|\bbtc\b|\beth\b/i], ['Technologie & KI', /tech|informat|ai\b|künstl|disrupt|digital|robot|semicond/i], ['Schwellenländer', /\bem\b|emerging|schwellen/i], ['Gold & Rohstoffe', /gold|silber|rohstoff|commod/i], ['Wasser & Umwelt', /water|wasser|clean|umwelt|energy/i], ['Welt (breit)', /world|welt|acwi|all.?country/i]];
 const finTheme = p => (FIN_THEMES.find(t => t[1].test(p.name)) || ['Sonstiges'])[0];
 function finBar(parts, total) {
   const ps = parts.filter(x => x.v > 0).sort((a, b) => b.v - a.v);
