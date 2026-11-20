@@ -251,10 +251,12 @@ async function openDoc(id) {
     ${ana}
     <div class="btns">${canApply ? '<button class="btn" value="apply">Ausgewählte übernehmen</button>' : ''}
       ${canAnalyze() ? `<button class="btn ${canApply ? 'ghost' : ''}" value="analyze" formnovalidate>${a ? 'Neu analysieren' : 'Analysieren'}</button>` : ''}
+      ${a ? '<button class="btn ghost" value="know" formnovalidate>Ins Wissen</button>' : ''}
       ${ART.db ? '' : '<button class="btn ghost" value="open" formnovalidate>Öffnen</button>'}
       <button class="btn warn" value="del" formnovalidate>Löschen</button>
       <button class="btn ghost" value="cancel" formnovalidate>Schließen</button></div>`, async (v, f) => {
     if (v === 'open') return showDoc(d.id);
+    if (v === 'know') return docToKnow(d);
     if (v === 'del') {
       if (!(await askConfirm('„' + d.name + '“ löschen?', 'Löschen'))) return;
       try { await DB.del(d.id); } catch (e) { return toast(e.message || 'Löschen fehlgeschlagen'); }

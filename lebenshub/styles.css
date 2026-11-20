@@ -113,3 +113,6 @@ body.kb .chat .msgs{max-height:calc(100dvh - 200px)}
 .fin-v small{display:block;font-weight:600;font-size:12px}
 .card h2 .t{font-size:16px;font-weight:700}
 @media (min-width:700px){.nav{justify-content:center;gap:8px}.nav button{max-width:96px}}
+.know input[type=search]{width:100%;padding:10px 12px;border-radius:12px;border:1px solid var(--bd);background:var(--bg);color:var(--tx);font:inherit;font-size:16px;margin-bottom:8px}
+.tags{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px}
+h2.sect{grid-column:1/-1;font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--mut);margin:10px 2px 0}

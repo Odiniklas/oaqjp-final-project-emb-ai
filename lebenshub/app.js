@@ -11,11 +11,11 @@ const ICON = {
   routines: '<path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/>',
   work: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/>',
   money: '<path d="M18 7.5A6.5 6.5 0 1 0 18 16.5"/><path d="M4 10.5h9M4 13.5h9"/>',
-  files: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+  files: '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z"/><path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5"/>',
   chat: '<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/>',
   health: '<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8z"/>'
 };
-const TABS = [['today', 'Heute'], ['chat', 'Assistent'], ['routines', 'Routinen'], ['work', 'Arbeit'], ['money', 'Finanzen'], ['health', 'Gesundheit'], ['files', 'Ablage']];
+const TABS = [['today', 'Heute'], ['chat', 'Assistent'], ['routines', 'Routinen'], ['work', 'Arbeit'], ['money', 'Finanzen'], ['health', 'Gesundheit'], ['files', 'Wissen']];
 const BW = ['Entwurf', 'Versandt', 'Termin', 'Stand prüfen', 'Absage'];
 
 /* Listen-Definitionen. Inhalte kommen per Import (Startdaten/Backup) oder werden in der App angelegt. */
@@ -91,6 +91,7 @@ function searchCard() {
     C.forEach(c => S.lists[c.k].forEach(it => { if ((it.n + ' ' + (it.t || '')).toLowerCase().includes(q)) hits.push(`<div class="row"><button class="t" data-act="iedit" data-k="${c.k}" data-id="${it.id}">${esc(it.n)}<small>${esc(c.title)}${it.t ? ' · ' + esc(it.t) : ''}</small></button>${c.st ? `<span class="chip ${stClass(c.st[it.s])}">${esc(c.st[it.s])}</span>` : ''}</div>`); }));
     S.routines.forEach(r => { if (r.n.toLowerCase().includes(q)) hits.push(`<div class="row"><button class="t" data-act="redit" data-id="${r.id}">${esc(r.n)}<small>Routine · ${esc(H.freqLabel(r))}</small></button></div>`); });
     (typeof DOCS !== 'undefined' ? DOCS : []).forEach(d => { const tt = (d.analysis && d.analysis.title) || d.name; if ((tt + ' ' + d.name).toLowerCase().includes(q)) hits.push(`<div class="row"><button class="t" data-act="dopen" data-id="${d.id}">${esc(tt)}<small>Dokument</small></button></div>`); });
+    (S.know || []).forEach(k => { if ((k.title + ' ' + k.summary + ' ' + k.tags.join(' ')).toLowerCase().includes(q)) hits.push(`<div class="row"><button class="t" data-act="kopen" data-id="${k.id}">${esc(k.title)}<small>Wissen · ${esc(k.kind)}</small></button></div>`); });
     if (S.fin) S.fin.positions.forEach(p => { if ((p.name + ' ' + (p.isin || '')).toLowerCase().includes(q)) hits.push(`<div class="row"><button class="t" data-act="fpos" data-id="${p.id}">${esc(p.name)}<small>Depot-Position</small></button></div>`); });
     res = hits.slice(0, 30).join('') || '<div class="empty">Nichts gefunden.</div>';
   }
@@ -222,7 +223,7 @@ function render() {
   else if (TAB === 'routines') h = viewRoutines();
   else if (TAB === 'settings') h = viewSettings();
   else if (TAB === 'chat') h = typeof viewChat === 'function' ? viewChat() : '';
-  else h = (TAB === 'money' && typeof finView === 'function' ? finView() : '') + C.filter(c => c.tab === TAB && !(c.hideEmpty && !S.lists[c.k].length)).map(c => listCard(c)).join('') + (typeof docsCard === 'function' && TAB !== 'files' ? docsCard(TAB) : '');
+  else h = (TAB === 'money' && typeof finView === 'function' ? finView() : '') + (TAB === 'files' && typeof knowView === 'function' ? knowView() + '<h2 class="sect">Ablage – deine Unterlagen</h2>' : '') + C.filter(c => c.tab === TAB && !(c.hideEmpty && !S.lists[c.k].length)).map(c => listCard(c)).join('') + (typeof docsCard === 'function' && TAB !== 'files' ? docsCard(TAB) : '');
   $('body').innerHTML = h;
   if (TAB === 'chat' && typeof scrollChat === 'function') scrollChat();
   if (TAB === 'settings') $('theme').value = S.settings.theme;
@@ -430,7 +431,7 @@ document.addEventListener('click', e => {
     case 'export': download('lebenshub-backup-' + t + '.json', 'application/json', JSON.stringify(S, null, 1)); break;
     case 'import': $('importFile').click(); break;
     case 'reset': askConfirm(ART.db ? 'Wirklich alle Hub-Daten löschen – auf allen Geräten? Mach vorher ein Backup.' : 'Wirklich alle Daten auf diesem Gerät löschen? Mach vorher ein Backup.', 'Alles löschen').then(ok => { if (ok) { const st = S.settings; S = seed(); S.settings = st; save('Zurückgesetzt'); } }); break;
-    default: if (typeof finAct === 'function' && finAct(act, b)) break; if (typeof docAct === 'function' && docAct(act, b)) break; if (typeof chatAct === 'function') chatAct(act, b); break;
+    default: if (typeof knowAct === 'function' && knowAct(act, b)) break; if (typeof finAct === 'function' && finAct(act, b)) break; if (typeof docAct === 'function' && docAct(act, b)) break; if (typeof chatAct === 'function') chatAct(act, b); break;
     case 'install': if (installEvt) { installEvt.prompt(); installEvt.userChoice.finally(() => { installEvt = null; render(); }); } break;
   }
 });
