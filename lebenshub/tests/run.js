@@ -85,6 +85,25 @@ async function page(browser, url, seed, extra) {
       ok(!r.inbox && r.has && r.log === 'Test-Job', 'Aktion ausgeführt, Job im Protokoll, Inbox-Dokument gelöscht', r);
       await ctx.close();
     }
+
+    console.log('6) Prompt-Bibliothek');
+    {
+      const { p, errs, ctx } = await page(browser, url, FIX);
+      const r = await p.evaluate(() => { TAB = 'files'; render(); const closed = !!document.querySelector('.prompts [data-act=prOpen][data-n="1"]');
+        PROPEN = true; render(); const rows = document.querySelectorAll('.prompts .row').length;
+        PRAREA = 'Startup & Marketing'; render(); const filtered = document.querySelectorAll('.prompts .row').length; PRAREA = '';
+        return { n: PROMPTS.length, closed, rows, filtered, noPrivate: !/Heideck|Steigerwald|N-ERGIE|Rothsee/.test(JSON.stringify(PROMPTS)) }; });
+      ok(r.n === 32 && r.rows === 32 && r.filtered === 7 && r.closed, '32 Prompts, Kurzansicht, Filter nach Bereich', r);
+      ok(r.noPrivate, 'keine persönlichen Projektnamen in den mitgelieferten Prompts', r);
+      await p.evaluate(() => promptDlg(1));
+      await p.fill('#dlgf textarea[name=task]', 'Notiz: Testgespräch');
+      await p.click('#dlgf button[value=odi]');
+      await p.waitForTimeout(200);
+      const r2 = await p.evaluate(() => ({ tab: TAB, draft: chatDraft.length, hasTask: chatDraft.endsWith('Notiz: Testgespräch'), sent: (window.__calls || []).length, hint: /übernehmen/.test(chatDraft) }));
+      ok(r2.tab === 'chat' && r2.hasTask && r2.hint && r2.sent === 0, '„Mit Odi nutzen“ füllt nur das Eingabefeld, sendet nichts', r2);
+      ok(errs.length === 0, 'keine JavaScript-Fehler', errs.slice(0, 3));
+      await ctx.close();
+    }
   } finally { await browser.close(); server.close(); }
   console.log(failed ? '\n' + failed + ' Test(s) fehlgeschlagen.' : '\nAlle Tests bestanden.');
   process.exit(failed ? 1 : 0);
