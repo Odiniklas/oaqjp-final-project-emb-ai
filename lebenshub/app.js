@@ -142,7 +142,7 @@ function viewToday() {
   const doneT = S.routines.filter(r => r.last === t && !H.state(r, t).due);
   const total = due.length + doneT.length;
   const pct = total ? Math.round(doneT.length / total * 100) : 100;
-  let h = searchCard() + `<section class="card wide"><h2>Heute zu tun<small>${doneT.length} von ${total} erledigt</small></h2><div class="bar"><i style="width:${pct}%"></i></div>
+  let h = searchCard() + (typeof weatherCard === 'function' ? weatherCard() : '') + `<section class="card wide"><h2>Heute zu tun<small>${doneT.length} von ${total} erledigt</small></h2><div class="bar"><i style="width:${pct}%"></i></div>
     ${due.map(r => routineRow(r, t)).join('')}${doneT.map(r => routineRow(r, t)).join('')}
     ${!total ? '<div class="empty">Heute stehen keine Routinen an.</div>' : !due.length ? '<div class="empty">Alles erledigt. Gute Arbeit!</div>' : ''}</section>`;
 

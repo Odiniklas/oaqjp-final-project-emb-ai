@@ -9,7 +9,9 @@ function mailParse(res) {
   collect(res && res.payload != null ? res.payload : res, (o, acc) => {
     if (o.id && Array.isArray(o.messages) && o.messages.length) {
       const m = o.messages[o.messages.length - 1];
-      const snd = typeof m.sender === 'string' ? m.sender : m.sender ? (m.sender.displayName || m.sender.name || '') + ' <' + (m.sender.email || m.sender.emailAddress || '') + '>' : '';
+      let snd = typeof m.sender === 'string' ? m.sender : m.sender ? (m.sender.displayName || m.sender.name || '') + ' <' + (m.sender.email || m.sender.emailAddress || '') + '>' : '';
+      const dn = Array.isArray(m.addressDisplayNames) ? m.addressDisplayNames.find(x => x && x.emailAddress && snd && snd.toLowerCase().includes(String(x.emailAddress).toLowerCase())) : null;
+      if (dn && dn.displayName && !/</.test(snd)) snd = dn.displayName + ' <' + dn.emailAddress + '>';
       acc.push({ id: String(o.id), msgId: String(m.id || ''), subject: String(m.subject || '(ohne Betreff)'), sender: snd, snippet: String(m.snippet || '').slice(0, 300), date: String(m.date || ''), url: String(o.viewUrl || m.viewUrl || ''), n: o.messageCount || o.messages.length });
     }
   }, out);

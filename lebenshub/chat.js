@@ -69,7 +69,7 @@ function hubSnapshot() {
 }
 
 function runTool(name, x, turn) {
-  const fr = (typeof finTool === 'function' ? finTool(name, x || {}) : null) || (typeof knowTool === 'function' ? knowTool(name, x || {}) : null) || (typeof healthTool === 'function' ? healthTool(name, x || {}) : null);
+  const fr = (typeof finTool === 'function' ? finTool(name, x || {}) : null) || (typeof knowTool === 'function' ? knowTool(name, x || {}) : null) || (typeof healthTool === 'function' ? healthTool(name, x || {}) : null) || (typeof weatherTool === 'function' ? weatherTool(name, x || {}) : null);
   if (fr) return fr;
   const L = k => { if (!S.lists[k]) throw new Error('Unbekannte Liste ' + k); return S.lists[k]; };
   const stIdx = (k, s) => { const c = C.find(y => y.k === k); if (!c.st || !s) return 0; const i = c.st.findIndex(v => v.toLowerCase() === String(s).toLowerCase()); return i < 0 ? 0 : i; };
