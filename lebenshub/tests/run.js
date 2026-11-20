@@ -92,9 +92,9 @@ async function page(browser, url, seed, extra) {
       const r = await p.evaluate(() => { TAB = 'files'; render(); const closed = !!document.querySelector('.prompts [data-act=prOpen][data-n="1"]');
         PROPEN = true; render(); const rows = document.querySelectorAll('.prompts .row').length;
         PRAREA = 'Startup & Marketing'; render(); const filtered = document.querySelectorAll('.prompts .row').length; PRAREA = '';
-        return { n: PROMPTS.length, closed, rows, filtered, noPrivate: !/Heideck|Steigerwald|N-ERGIE|Rothsee/.test(JSON.stringify(PROMPTS)) }; });
+        return { n: PROMPTS.length, closed, rows, filtered, noPrivate: !/@[a-z0-9-]+\.[a-z]{2,}|\bDE\d{2} ?\d{4}|sk-ant-/i.test(JSON.stringify(PROMPTS)) && PROMPTS.every(p => !/\[PRIVAT|NUR_PRIVAT/.test(p.body)) }; });
       ok(r.n === 32 && r.rows === 32 && r.filtered === 7 && r.closed, '32 Prompts, Kurzansicht, Filter nach Bereich', r);
-      ok(r.noPrivate, 'keine persönlichen Projektnamen in den mitgelieferten Prompts', r);
+      ok(r.noPrivate, 'keine E-Mail-Adressen, IBANs oder Schlüssel in den mitgelieferten Prompts', r);
       await p.evaluate(() => promptDlg(1));
       await p.fill('#dlgf textarea[name=task]', 'Notiz: Testgespräch');
       await p.click('#dlgf button[value=odi]');
