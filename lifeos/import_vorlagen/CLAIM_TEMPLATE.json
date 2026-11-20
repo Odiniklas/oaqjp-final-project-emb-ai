@@ -1,0 +1,17 @@
+{
+  "id": "CLAIM-YYYY-NNNN",
+  "project_id": "FLEXGRID",
+  "record_type": "claim",
+  "statement": "Eine konkrete, isolierte Aussage",
+  "status": "user_reported",
+  "source_id": "Dokument + Abschnitt oder Gesprächsnotiz",
+  "source_date": "YYYY-MM-DD",
+  "observed_at": "YYYY-MM-DD",
+  "sensitivity": "personal",
+  "confidence_level": "medium",
+  "valid_until": null,
+  "supersedes": null,
+  "next_verification": "Prüfschritt",
+  "tags": ["energiehub"],
+  "version": 1
+}
