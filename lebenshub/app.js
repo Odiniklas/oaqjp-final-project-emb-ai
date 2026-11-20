@@ -146,7 +146,7 @@ function viewToday() {
     ${due.map(r => routineRow(r, t)).join('')}${doneT.map(r => routineRow(r, t)).join('')}
     ${!total ? '<div class="empty">Heute stehen keine Routinen an.</div>' : !due.length ? '<div class="empty">Alles erledigt. Gute Arbeit!</div>' : ''}</section>`;
 
-  h += (typeof mailCard === 'function' ? mailCard() : '') + (typeof jobLogCard === 'function' ? jobLogCard() : '');
+  h += (typeof mailCard === 'function' ? mailCard() : '') + (typeof photoCard === 'function' ? photoCard() : '') + (typeof jobLogCard === 'function' ? jobLogCard() : '');
   // Demnächst: Datums-Einträge aller Listen + Routinen der nächsten 7 Tage
   const until = H.add(t, 14), up = [];
   C.forEach(c => S.lists[c.k].forEach(it => {
@@ -372,6 +372,7 @@ function icsText() {
   });
   C.forEach(c => S.lists[c.k].forEach(it => {
     if (!it.d || it.d < t || isDone(c, it)) return;
+    if (it.tm && typeof apptIcs === 'function') { const x = apptIcs([{ title: it.n, date: it.d, time: it.tm, end: it.te || '', note: c.title + (it.t ? ' – ' + it.t : '') }]).split('\r\n'); L.push(...x.slice(x.indexOf('BEGIN:VEVENT'), x.indexOf('END:VEVENT') + 1).map(l => /^UID:/.test(l) ? 'UID:' + it.id + '@lebenshub' : l)); return; }
     L.push('BEGIN:VEVENT', 'UID:' + it.id + '@lebenshub', 'DTSTAMP:' + now, 'DTSTART;VALUE=DATE:' + D(it.d), 'DTEND;VALUE=DATE:' + D(H.add(it.d, 1)),
       fold('SUMMARY:' + ix(it.n)), fold('DESCRIPTION:' + ix(c.title + (it.t ? ' – ' + it.t : ''))),
       'BEGIN:VALARM', 'ACTION:DISPLAY', fold('DESCRIPTION:' + ix(it.n)), 'TRIGGER:-PT15H', 'END:VALARM', 'END:VEVENT');
@@ -431,7 +432,7 @@ document.addEventListener('click', e => {
     case 'export': download('lebenshub-backup-' + t + '.json', 'application/json', JSON.stringify(S, null, 1)); break;
     case 'import': $('importFile').click(); break;
     case 'reset': askConfirm(ART.db ? 'Wirklich alle Hub-Daten löschen – auf allen Geräten? Mach vorher ein Backup.' : 'Wirklich alle Daten auf diesem Gerät löschen? Mach vorher ein Backup.', 'Alles löschen').then(ok => { if (ok) { const st = S.settings; S = seed(); S.settings = st; save('Zurückgesetzt'); } }); break;
-    default: if (typeof musicAct === 'function' && musicAct(act, b)) break; if (typeof odiAct === 'function' && odiAct(act, b)) break; if (typeof mailAct === 'function' && mailAct(act, b)) break; if (typeof healthAct === 'function' && healthAct(act, b)) break; if (typeof knowAct === 'function' && knowAct(act, b)) break; if (typeof finAct === 'function' && finAct(act, b)) break; if (typeof docAct === 'function' && docAct(act, b)) break; if (typeof chatAct === 'function') chatAct(act, b); break;
+    default: if (typeof photoAct === 'function' && photoAct(act, b)) break; if (typeof musicAct === 'function' && musicAct(act, b)) break; if (typeof odiAct === 'function' && odiAct(act, b)) break; if (typeof mailAct === 'function' && mailAct(act, b)) break; if (typeof healthAct === 'function' && healthAct(act, b)) break; if (typeof knowAct === 'function' && knowAct(act, b)) break; if (typeof finAct === 'function' && finAct(act, b)) break; if (typeof docAct === 'function' && docAct(act, b)) break; if (typeof chatAct === 'function') chatAct(act, b); break;
     case 'install': if (installEvt) { installEvt.prompt(); installEvt.userChoice.finally(() => { installEvt = null; render(); }); } break;
   }
 });

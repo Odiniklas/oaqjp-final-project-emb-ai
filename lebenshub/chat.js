@@ -14,6 +14,7 @@ function saveChat() { try { localStorage.setItem(CHAT_KEY, JSON.stringify(CHAT.s
 /* Stabiler Teil des Prompts (wird gecacht – nicht pro Anfrage verändern) */
 const SYS = `Du bist der persönliche Assistent im „Lebenshub“ (Termine, Routinen, Arbeit, Finanzen, Gesundheit). Antworte auf Deutsch, knapp und freundlich (Du-Form).
 Übernimm alles, was der Nutzer erzählt oder anhängt, sofort in den Hub – ohne Rückfrage, wenn die Zuordnung klar ist:
+- Termine auf Fotos/Screenshots (z. B. Physio-Terminzettel) → je Termin add_entry in Liste t mit date und time (HH:MM), Ort in note.
 - Neues mit add_entry in die passende Liste; Vorhandenes mit update_entry aktualisieren statt doppelt anlegen (IDs aus den Hub-Daten).
 - Wiederkehrendes als Routine (add_routine), Erledigtes abhaken (complete_routine bzw. Status per update_entry).
 - Angehängte Dateien: auswerten, mit store_attachment im passenden Bereich ablegen, relevante Fakten als Einträge übernehmen.
@@ -31,7 +32,7 @@ function tools() {
   return [
     { name: 'add_entry', description: 'Neuen Eintrag in einer Liste anlegen.',
       input_schema: { type: 'object', additionalProperties: false, required: ['list', 'title'], properties: {
-        list: { type: 'string', enum: listEnum() }, title: str('Kurzer Titel'), note: str('Notiz/Wert'), date: str('JJJJ-MM-TT'), status: str('Statusname der Liste') } } },
+        list: { type: 'string', enum: listEnum() }, title: str('Kurzer Titel'), note: str('Notiz/Wert'), date: str('JJJJ-MM-TT'), time: str('Uhrzeit HH:MM bei Terminen'), status: str('Statusname der Liste') } } },
     { name: 'update_entry', description: 'Eintrag ändern (nur angegebene Felder).',
       input_schema: { type: 'object', additionalProperties: false, required: ['list', 'id'], properties: {
         list: { type: 'string', enum: listEnum() }, id: str('Eintrags-ID'), title: str('Titel'), note: str('Notiz/Wert'), date: str('JJJJ-MM-TT, leer = entfernen'), status: str('Statusname') } } },
@@ -78,6 +79,7 @@ function runTool(name, x, turn) {
   switch (name) {
     case 'add_entry': {
       const it = { id: uid(), n: String(x.title || '').trim() || 'Eintrag', t: x.note || '', d: date(x.date), s: stIdx(x.list, x.status) };
+      if (/^\d{1,2}:\d{2}$/.test(x.time || '')) { it.tm = x.time.padStart(5, '0'); if (!it.t.includes(it.tm)) it.t = (it.tm + ' Uhr' + (it.t ? ' · ' + it.t : '')); }
       L(x.list).push(it);
       return { label: '＋ ' + title(x.list) + ': ' + it.n, result: 'angelegt, id=' + it.id };
     }
@@ -233,7 +235,7 @@ const ABO_FORMAT = `Antworte zuerst ganz normal. Wenn etwas in den Lebenshub sol
 \`\`\`lebenshub
 {"actions":[{"tool":"add_entry","list":"x","title":"…","note":"…","date":"JJJJ-MM-TT","status":"…"}]}
 \`\`\`
-Werkzeuge: add_entry(list,title,note?,date?,status?), update_entry(list,id,title?,note?,date?,status?), delete_entry(list,id), add_routine(title,freq=daily|weekly|monthly,every?,weekday 0=So..6=Sa?,monthday?,time HH:MM?, note?), complete_routine(id), delete_routine(id), set_account(name, kind=Depot|Girokonto|Tagesgeld|Verrechnungskonto, broker?, cash? in EUR, asOf?), set_position(account, name, isin?, qty?, buyPrice?, price? in EUR, priceDate?), set_prices(prices:[{name|isin, price in EUR, date}]), remove_position(account, name), set_health_day(date?, sleep?, hrv?, rhr?, steps?, active?, stress?, spo2?, weight?, mood? 1–5, energy? 1–5, sore? 1–5, note?, source?), add_meal(description, kcal, protein?, carbs?, fat?, date?, time?), add_knowledge(title, kind=Paper|Artikel|Notiz|Video|Buch|Studie|Patent|Idee, url?, source?, summary?, points?[], tags?[], status=Zu lesen|Gelesen|Verarbeitet).
+Werkzeuge: add_entry(list,title,note?,date?,time? HH:MM,status?), update_entry(list,id,title?,note?,date?,status?), delete_entry(list,id), add_routine(title,freq=daily|weekly|monthly,every?,weekday 0=So..6=Sa?,monthday?,time HH:MM?, note?), complete_routine(id), delete_routine(id), set_account(name, kind=Depot|Girokonto|Tagesgeld|Verrechnungskonto, broker?, cash? in EUR, asOf?), set_position(account, name, isin?, qty?, buyPrice?, price? in EUR, priceDate?), set_prices(prices:[{name|isin, price in EUR, date}]), remove_position(account, name), set_health_day(date?, sleep?, hrv?, rhr?, steps?, active?, stress?, spo2?, weight?, mood? 1–5, energy? 1–5, sore? 1–5, note?, source?), add_meal(description, kcal, protein?, carbs?, fat?, date?, time?), add_knowledge(title, kind=Paper|Artikel|Notiz|Video|Buch|Studie|Patent|Idee, url?, source?, summary?, points?[], tags?[], status=Zu lesen|Gelesen|Verarbeitet).
 Listen: ${'${LISTEN}'}
 Regeln: nichts erfinden, Datum JJJJ-MM-TT, keine IBAN/Konto-/Kunden-/Versicherungsnummern, vorhandene Einträge per update_entry mit ihrer id ändern statt doppelt anlegen.`;
 function aboFormat() { return ABO_FORMAT.replace('${LISTEN}', C.map(c => c.k + '=' + c.title + (c.st ? ' (Status: ' + c.st.join('/') + ')' : '')).join(', ')); }
