@@ -112,3 +112,4 @@ body.kb .chat .msgs{max-height:calc(100dvh - 200px)}
 .fin-acc,.fin-v{font-variant-numeric:tabular-nums;font-weight:600;text-align:right;white-space:nowrap}
 .fin-v small{display:block;font-weight:600;font-size:12px}
 .card h2 .t{font-size:16px;font-weight:700}
+@media (min-width:700px){.nav{justify-content:center;gap:8px}.nav button{max-width:96px}}
