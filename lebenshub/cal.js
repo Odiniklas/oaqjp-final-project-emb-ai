@@ -22,6 +22,13 @@ function calDay(d) {
     if (inApple) { const a = out.find(x => x.kind === 'apple' && calKey(x.title, d) === calKey(it.n, d)); if (a) { a.hub = { k: c.k, id: it.id }; a.sub += ' · im Hub'; } return; }
     out.push({ kind: c.k === 't' ? 't' : 'item', title: it.n, tm: it.tm || calTimeOf(it.n + ' ' + (it.t || '')), te: it.te || '', sub: c.title + (it.t && !/^\d{1,2}:\d{2}/.test(it.t) ? ' · ' + it.t : ''), k: c.k, id: it.id, sent: K.sent[it.id] === calSig(it) });
   }));
+  if (typeof life === 'function') life().items.forEach(it => {
+    if (it.status === 'gekündigt') return;
+    const regular = it.status === 'aktiv' && ['monat', 'quartal', 'halbjahr', 'jahr'].includes(it.per) && !it.end;
+    if (it.next === d && !regular) out.push({ kind: 'item', title: it.name, tm: '', sub: 'Leben · Frist' + (it.note ? ' · ' + it.note.slice(0, 60) : ''), id: it.id, life: 1 });
+    if (it.end === d) out.push({ kind: 'item', title: it.name + ' – endet', tm: '', sub: 'Leben · Vertragsende', id: it.id, life: 1 });
+  });
+  if (S.fin && S.fin.goals) S.fin.goals.forEach(g => { if (g.date === d) out.push({ kind: 'item', title: 'Ziel: ' + g.name, tm: '', sub: 'Finanzen · Zieltermin', id: g.id, goal: 1 }); });
   if (K.showRt) S.routines.forEach(r => { if (H.isOcc(r, d)) out.push({ kind: 'rt', title: r.n, tm: r.time || '', sub: 'Routine · ' + H.freqLabel(r), id: r.id, done: r.last === d }); });
   return out.sort((a, b) => (a.tm || '99:99').localeCompare(b.tm || '99:99') || a.title.localeCompare(b.title));
 }
@@ -40,7 +47,7 @@ function calGrid() {
 }
 function calRow(e) {
   const tm = e.tm ? `<b>${esc(e.tm)}</b>${e.te ? '<small>' + esc(e.te) + '</small>' : ''}` : '<small>ganztags</small>';
-  const act = e.kind === 'apple' ? (e.hub ? `data-act="cedit" data-k="${e.hub.k}" data-id="${e.hub.id}"` : '') : e.kind === 'rt' ? `data-act="redit" data-id="${e.id}"` : `data-act="cedit" data-k="${e.k}" data-id="${e.id}"`;
+  const act = e.life ? `data-act="lifeEdit" data-id="${e.id}"` : e.goal ? `data-act="fgoal" data-id="${e.id}"` : e.kind === 'apple' ? (e.hub ? `data-act="cedit" data-k="${e.hub.k}" data-id="${e.hub.id}"` : '') : e.kind === 'rt' ? `data-act="redit" data-id="${e.id}"` : `data-act="cedit" data-k="${e.k}" data-id="${e.id}"`;
   return `<div class="cal-ev ${e.kind}${e.done ? ' done' : ''}"><span class="cal-tm">${tm}</span><span class="cal-bar" style="background:${CAL_COL[e.kind === 'item' ? 'item' : e.kind]}"></span><button class="t" ${act}>${esc(e.title)}<small>${esc(e.sub || '')}${e.loc ? ' · ' + esc(e.loc) : ''}${e.kind === 't' || e.kind === 'item' ? (e.sent ? ' · ✓ Apple' : '') : ''}</small></button></div>`;
 }
 function calDayBlock(d, head) {

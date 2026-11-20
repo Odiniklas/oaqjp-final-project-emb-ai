@@ -90,12 +90,15 @@ function searchCard() {
   let res = '';
   if (q.length > 1) {
     const hits = [];
-    C.forEach(c => S.lists[c.k].forEach(it => { if ((it.n + ' ' + (it.t || '')).toLowerCase().includes(q)) hits.push(`<div class="row"><button class="t" data-act="iedit" data-k="${c.k}" data-id="${it.id}">${esc(it.n)}<small>${esc(c.title)}${it.t ? ' · ' + esc(it.t) : ''}</small></button>${c.st ? `<span class="chip ${stClass(c.st[it.s])}">${esc(c.st[it.s])}</span>` : ''}</div>`); }));
+    C.filter(c => !/-alt$/.test(c.tab)).forEach(c => S.lists[c.k].forEach(it => { if ((it.n + ' ' + (it.t || '')).toLowerCase().includes(q)) hits.push(`<div class="row"><button class="t" data-act="iedit" data-k="${c.k}" data-id="${it.id}">${esc(it.n)}<small>${esc(c.title)}${it.t ? ' · ' + esc(it.t) : ''}</small></button>${c.st ? `<span class="chip ${stClass(c.st[it.s])}">${esc(c.st[it.s])}</span>` : ''}</div>`); }));
     S.routines.forEach(r => { if (r.n.toLowerCase().includes(q)) hits.push(`<div class="row"><button class="t" data-act="redit" data-id="${r.id}">${esc(r.n)}<small>Routine · ${esc(H.freqLabel(r))}</small></button></div>`); });
     (typeof DOCS !== 'undefined' ? DOCS : []).forEach(d => { const tt = (d.analysis && d.analysis.title) || d.name; if ((tt + ' ' + d.name).toLowerCase().includes(q)) hits.push(`<div class="row"><button class="t" data-act="dopen" data-id="${d.id}">${esc(tt)}<small>Dokument</small></button></div>`); });
     (S.know || []).forEach(k => { if ((k.title + ' ' + k.summary + ' ' + k.tags.join(' ')).toLowerCase().includes(q)) hits.push(`<div class="row"><button class="t" data-act="kopen" data-id="${k.id}">${esc(k.title)}<small>Wissen · ${esc(k.kind)}</small></button></div>`); });
     if (S.fin) S.fin.positions.forEach(p => { if ((p.name + ' ' + (p.isin || '')).toLowerCase().includes(q)) hits.push(`<div class="row"><button class="t" data-act="fpos" data-id="${p.id}">${esc(p.name)}<small>Depot-Position</small></button></div>`); });
-    res = hits.slice(0, 30).join('') || '<div class="empty">Nichts gefunden.</div>';
+    if (S.life && S.life.items) S.life.items.forEach(it => { if ((it.name + ' ' + (it.provider || '') + ' ' + (it.note || '')).toLowerCase().includes(q)) hits.push(`<div class="row"><button class="t" data-act="lifeEdit" data-id="${it.id}">${esc(it.name)}<small>Leben${it.cost ? ' · ' + eur(it.cost) : ''}${it.provider ? ' · ' + esc(it.provider) : ''}</small></button></div>`); });
+    if (S.fin && S.fin.goals) S.fin.goals.forEach(g => { if ((g.name + ' ' + (g.note || '')).toLowerCase().includes(q)) hits.push(`<div class="row"><button class="t" data-act="fgoal" data-id="${g.id}">${esc(g.name)}<small>Ziel${g.target ? ' · ' + eur(g.target, 0) : ''}</small></button></div>`); });
+    if (typeof TT !== 'undefined') TT.items.forEach(x => { if (x.t && (x.t + ' ' + (x.k || '') + ' ' + (x.n || '')).toLowerCase().includes(q)) hits.push(`<div class="row"><a class="t" href="https://www.tiktok.com/@/video/${x.v}" target="_blank" rel="noopener">${esc(x.t)}<small>TikTok${x.k ? ' · ' + esc(x.k) : ''}</small></a></div>`); });
+    res = hits.slice(0, 40).join('') || '<div class="empty">Nichts gefunden.</div>';
   }
   return `<section class="card wide search"><input type="search" id="hubq" placeholder="Im Hub suchen …" value="${esc(HUBQ)}" autocomplete="off" enterkeyhint="search">${res}</section>`;
 }
@@ -119,6 +122,14 @@ function routineRow(r, t) {
 
 function upCard() {
   return `<button class="upbig" data-act="dup"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg><span>Dokumente hochladen<small>PDF, Fotos, Screenshots, Office, ZIP</small></span></button>`;
+}
+function glanceCard() {
+  if (!S.fin || !S.fin.accounts || !S.fin.accounts.length || typeof finTotals !== 'function') return '';
+  const t = finTotals(), pl = finPL(S.fin.positions), L = typeof life === 'function' ? life() : null, T = L ? lifeTotals() : null;
+  const free = L && L.income != null ? L.income - T.month - (T.save || 0) : null, due = L ? lifeDue(30) : [], R = typeof pensCalc === 'function' ? pensCalc() : null;
+  return `<section class="card"><h2><button class="t" data-act="tab" data-v="money">Geld & Leben</button><small>Kurzüberblick</small></h2>
+    ${finKpis([['Vermögen', eur(t.total, 0)], pl.cost ? ['seit Kauf', (pl.abs >= 0 ? '+' : '−') + eur(Math.abs(pl.abs), 0), pl.abs >= 0 ? 'pos' : 'neg'] : null, free != null ? ['frei/Monat', eur(free, 0), free >= 0 ? 'pos' : 'neg'] : null, R ? ['Rente (heute)', eur(R.total, 0)] : null])}
+    ${due.length ? `<div class="hint">Nächste Frist: <button class="chip due" data-act="lifeEdit" data-id="${due[0].id}">${esc(due[0].name)} · ${esc(H.fd(due[0].next))}</button></div>` : ''}</section>`;
 }
 function listCard(c, opts) {
   const o = opts || {};
@@ -152,7 +163,7 @@ function viewToday() {
   const doneT = S.routines.filter(r => r.last === t && !H.state(r, t).due);
   const total = due.length + doneT.length;
   const pct = total ? Math.round(doneT.length / total * 100) : 100;
-  let h = searchCard() + upCard() + (typeof weatherCard === 'function' ? weatherCard() : '') + (typeof calTodayCard === 'function' ? calTodayCard() : '') + (typeof musicCard === 'function' ? musicCard() : '') + `<section class="card wide"><h2>Heute zu tun<small>${doneT.length} von ${total} erledigt</small></h2><div class="bar"><i style="width:${pct}%"></i></div>
+  let h = searchCard() + upCard() + (typeof weatherCard === 'function' ? weatherCard() : '') + (typeof calTodayCard === 'function' ? calTodayCard() : '') + (typeof glanceCard === 'function' ? glanceCard() : '') + (typeof musicCard === 'function' ? musicCard() : '') + `<section class="card wide"><h2>Heute zu tun<small>${doneT.length} von ${total} erledigt</small></h2><div class="bar"><i style="width:${pct}%"></i></div>
     ${due.map(r => routineRow(r, t)).join('')}${doneT.map(r => routineRow(r, t)).join('')}
     ${!total ? '<div class="empty">Heute stehen keine Routinen an.</div>' : !due.length ? '<div class="empty">Alles erledigt. Gute Arbeit!</div>' : ''}</section>`;
 

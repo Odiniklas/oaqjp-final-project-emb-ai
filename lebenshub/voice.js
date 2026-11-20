@@ -57,6 +57,15 @@ function odiLocal(q) {
   if (/depot|vermögen|finanzen|aktien|portfolio/.test(s) && typeof finTotals === 'function' && S.fin && S.fin.accounts && S.fin.accounts.length)
     return 'Dein Gesamtvermögen liegt bei ' + Math.round(finTotals().total).toLocaleString('de-DE') + ' Euro' + sirP() + '.';
   if (/mail/.test(s) && typeof MAILS !== 'undefined' && MAILS) return MAILS.length ? 'Du hast ' + MAILS.length + ' ungelesene Mail' + (MAILS.length > 1 ? 's' : '') + '. Die neueste: ' + MAILS[0].subject + '.' : 'Keine ungelesenen Mails' + sirP() + '.';
+  if (typeof life === 'function') {
+    const L = life(), T = lifeTotals();
+    if (/frei|übrig|budget|sparen kann/.test(s) && L.income != null) return 'Von ' + eur(L.income, 0) + ' Auszahlung gehen ' + eur(T.month, 0) + ' Fixkosten und ' + eur(T.save, 0) + ' Sparen ab – frei bleiben etwa ' + eur(L.income - T.month - T.save, 0) + ' im Monat' + sirP() + '.';
+    if (/fixkosten|monatlich.*kost|kosten.*monat|ausgaben/.test(s) && T.month) { const top = LIFE_CATS.map(c => [c[1], T.by[c[0]] || 0]).sort((a, b) => b[1] - a[1]).slice(0, 2); return 'Deine Fixkosten liegen bei ' + eur(T.month, 0) + ' im Monat, vor allem ' + top.map(x => x[0] + ' mit ' + eur(x[1], 0)).join(' und ') + '.'; }
+    if (/auto|mobilität|leasing/.test(s) && /kost|zahl|teuer/.test(s)) return 'Mobilität kostet dich ' + eur(T.by.mobil || 0, 0) + ' im Monat' + sirP() + '.';
+    if (/gehalt|verdien|netto|brutto/.test(s) && L.salary) return 'Laut letzter Abrechnung ' + eur(L.salary.gross, 0) + ' brutto, ' + eur(L.salary.net, 0) + ' netto, ausgezahlt ' + eur(L.salary.payout || L.income, 0) + '.';
+    if (/rente/.test(s) && typeof pensCalc === 'function') { const R = pensCalc(); if (R) return 'Grob geschätzt etwa ' + eur(R.total, 0) + ' im Monat ab ' + R.yR + ' in heutiger Kaufkraft – davon gesetzlich ' + eur(R.netGov, 0) + ', Betriebsrente ' + eur(R.bavMonth, 0) + ' und Depot ' + eur(R.depMonth, 0) + '.'; }
+    if (/frist|kündig|vertrag/.test(s)) { const d = lifeDue(90); return d.length ? 'Nächste Fristen: ' + d.slice(0, 3).map(x => x.name + ' am ' + H.fd(x.next)).join(', ') + '.' : 'Keine Fristen in den nächsten drei Monaten' + sirP() + '.'; }
+  }
   if (/wie spät|uhrzeit/.test(s)) return 'Es ist ' + new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) + ' Uhr' + sirP() + '.';
   if (/^(danke|merci)/.test(s)) return 'Stets zu Diensten' + sirP() + '.';
   return null;
@@ -74,9 +83,10 @@ function odiCommand(q) {
 }
 let odiGo = '';
 const _sendChat = sendChat;
+const dotFix = s => String(s).replace(/\.\.(\s|$)/g, '.$1');
 sendChat = async function (text) {
   const t = (text || '').trim();
-  const a = !chatBusy && !chatFiles.length ? (odiCommand(t) || (odi().on ? odiLocal(t) : null)) : null;
+  const a0 = !chatBusy && !chatFiles.length ? (odiCommand(t) || (odi().on ? odiLocal(t) : null)) : null, a = a0 == null ? null : dotFix(a0);
   if (a == null) return _sendChat(text);
   CHAT.push({ role: 'user', text: t, voice: viaVoice, at: Date.now() }, { role: 'assistant', text: a, actions: [], at: Date.now() });
   chatDraft = ''; viaVoice = false; saveChat(); render(); scrollChat();
