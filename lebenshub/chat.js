@@ -204,6 +204,42 @@ async function sendChat(text) {
 
 /* ---------- Im Claude-Artefakt: über das Abo des Nutzers (sample) mit Seiten-Werkzeugen ---------- */
 let chatStream = '', chatCtl = null;
+/* Nur passende Werkzeuge mitgeben (Claude erlaubt pro Anfrage nur eine begrenzte Zahl) */
+const TOOL_GROUPS = [
+  [/termin|eintrag|liste|aufgabe|todo|erinner|routine|bewerb|frist|schritt|notier|merk|lösch|änder|erledigt|abhak/i, ['add_entry', 'update_entry', 'delete_entry', 'add_routine', 'complete_routine', 'delete_routine']],
+  [/depot|aktie|etf|kurs|konto|krypto|bitcoin|ethereum|sparplan|position|portfolio|vermögen|trade republic|comdirect|börse/i, ['set_account', 'set_position', 'set_prices', 'remove_position', 'set_saving_plan']],
+  [/vertrag|versicher|miete|nebenkosten|strom|kfz|auto|handy|abo|kündig|rente|bav|gehalt|netto|einkommen|police|leasing|dienstrad/i, ['set_contract', 'set_income']],
+  [/wissen|paper|studie|artikel|buch|lern|video|idee|notiz|recherch|businessplan|berechn|rechne|bewert|kapitalwert|dcf/i, ['add_knowledge', 'get_knowledge']],
+  [/schlaf|hrv|puls|schritte|gewicht|essen|mahlzeit|kalorien|eiweiß|protein|gegessen|training|erholt|stimmung|energie|ziel/i, ['set_health_day', 'add_meal', 'set_health_goals']],
+  [/tiktok/i, ['add_tiktok', 'tiktok_update']],
+  [/zusammenhang|erkenntnis|verknüpf|gehirn/i, ['add_insight', 'link_items']],
+];
+const TOOL_CORE = ['add_entry', 'update_entry', 'add_routine', 'complete_routine', 'add_knowledge', 'get_knowledge', 'set_contract', 'add_meal', 'set_health_day', 'set_position', 'set_prices', 'add_tiktok', 'add_insight'];
+function pickTools(text, max, hasFiles) {
+  const all = tools(), want = [];
+  const add = n => { if (!want.includes(n) && all.some(t => t.name === n)) want.push(n); };
+  if (hasFiles) add('store_attachment');
+  TOOL_GROUPS.forEach(([re, names]) => { if (re.test(text)) names.forEach(add); });
+  TOOL_CORE.forEach(add);
+  all.forEach(t => add(t.name));
+  return want.slice(0, Math.max(1, max)).map(n => all.find(t => t.name === n));
+}
+/* Ersatzweg ohne Werkzeuge: Claude antwortet als JSON mit Aktionen, die App führt sie aus */
+async function sendArtJson(turns, images, turn, actions) {
+  const spec = tools().map(t => t.name + '(' + Object.keys((t.input_schema && t.input_schema.properties) || {}).join(', ') + ')').join('; ');
+  const last = turns[turns.length - 1];
+  const prompt = turns.slice(0, -1).map(m => (m.role === 'user' ? 'Nutzer: ' : 'Assistent: ') + m.content).join('\n\n') + '\n\nNutzer: ' + last.content +
+    '\n\nAntworte NUR mit JSON {"reply":"deine Antwort an mich","actions":[{"tool":"<name>", …Argumente}]}. Führe meinen Wunsch über actions aus, wenn etwas eingetragen/geändert werden soll. Verfügbare Werkzeuge: ' + spec;
+  const out = await ART.sample.json(prompt, Object.assign({ modelTier: pref('tier', 'default'), effort: 'low', cache: false }, images.length && ART.imgMax ? { images: images.slice(0, ART.imgMax) } : {}));
+  (Array.isArray(out && out.actions) ? out.actions : []).slice(0, 40).forEach(a => {
+    if (!a || !a.tool) return;
+    try { actions.push(runTool(String(a.tool), a, turn).label); } catch (e) { actions.push('⚠︎ ' + a.tool + ': ' + e.message); }
+  });
+  return String((out && out.reply) || (actions.length ? 'Erledigt.' : '…'));
+}
+function turns2(text) {
+  return [{ role: 'user', content: sysText() }].concat(history(), [{ role: 'user', content: hubSnapshot() + '\n\n' + text }]);
+}
 async function sendArt(text) {
   const files = chatFiles; chatFiles = []; chatDraft = '';
   CHAT.push({ role: 'user', text, files: files.map(f => f.name), voice: viaVoice, at: Date.now() });
@@ -223,17 +259,23 @@ async function sendArt(text) {
       [{ role: 'user', content: hubSnapshot() + extra + '\n\n' + (text || 'Bitte auswerten und in den Hub übernehmen.') +
         (viaVoice || talkMode || location.hash === '#odi' ? '\n\n(Per Sprache – Antwort wird vorgelesen: höchstens 2 kurze Sätze, keine Aufzählungen.)' : '') }]);
     chatCtl = new AbortController();
+    if (!ART.toolMax) { reply = (await sendArtJson(turns, images, turn, actions)).trim(); throw { done: true }; }
     const res = await ART.sample(turns, {
       cache: false, signal: chatCtl.signal, modelTier: pref('tier', 'default'), effort: 'low',
       ...(images.length && ART.imgMax ? { images: images.slice(0, ART.imgMax) } : {}),
-      tools: tools().map(t => ({ name: t.name, description: t.description, inputSchema: t.input_schema,
+      tools: pickTools(text + ' ' + (extra ? 'anhang' : ''), ART.toolMax, turn.files.length > 0).map(t => ({ name: t.name, description: t.description, inputSchema: t.input_schema,
         execute: inp => { const r = runTool(t.name, inp || {}, turn); actions.push(r.label); chatStream = chatStream || '…'; showStream(); return r.result; } })),
       onText: ({ text: tx }) => { chatStream = tx; showStream(); }
     });
     reply = res.text.trim();
     for (const f of turn.files) { if (turn.stored && !f.failed) { try { await DB.put(f); } catch (e) { /* bleibt unter Arbeit */ } } }
     if (turn.files.some(f => !f.failed) && !turn.stored) actions.push('📎 ' + turn.files.filter(f => !f.failed).length + ' Datei(en) unter Arbeit → Dokumente abgelegt');
-  } catch (e) { reply = (e && e.text) || sampleErr(e); err = !(e && e.text); }
+  } catch (e) {
+    if (e && e.done) { /* Ersatzweg fertig */ }
+    else if (e && (e.code === 'tools_unavailable' || e.code === 'invalid_request') && !actions.length) {
+      try { ART.toolMax = e.code === 'tools_unavailable' ? 0 : ART.toolMax; reply = (await sendArtJson(turns2(text), [], turn, actions)).trim(); } catch (e2) { reply = sampleErr(e2); err = true; }
+    } else { reply = (e && e.text) || sampleErr(e); err = !(e && e.text); }
+  }
   chatCtl = null; chatStream = ''; viaVoice = false;
   finishTurn(reply, actions, snap, err, 0);
 }

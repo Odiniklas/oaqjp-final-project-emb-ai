@@ -44,7 +44,7 @@ function briefing() {
 /* Antwortet direkt, wenn die Frage einfach ist – sonst null (dann Claude) */
 function odiLocal(q) {
   const s = q.toLowerCase().trim();
-  if (!s || s.length > 90 || /trag|leg .*an|anlegen|erinner|füg|notier|lösch|änder|speicher|schreib|recherch|such|warum|erklär|vergleich|analys|empfiehl/.test(s)) return null;
+  if (!s || s.length > 90 || /trag|leg|erstell|mach|setz|plan|buch|neu|füg|hinzu|notier|merk|verschieb|lösch|änder|kauf|aktualisier|speicher|schreib|schick|send|erinner|recherch|such|warum|erklär|vergleich|analys|empfiehl|rechne|berechn|kannst du|bitte/.test(s) || /\d{1,2}([:.]\d{2})?\s*uhr|\bum \d/.test(s)) return null;
   const morgen = /morgen(?!s)/.test(s) && !/guten morgen/.test(s), d = morgen ? H.add(H.today(), 1) : H.today(), wann = morgen ? 'Morgen' : 'Heute';
   if (/^(hey |hallo |hi |ok )?(odi|udi)\b[\s!?.]*$|briefing|überblick|guten morgen|lagebericht|status/.test(s)) return briefing();
   if (/wetter|regen|regnet|temperatur|grad|warm|kalt|anzieh|schirm|sonne|schnee/.test(s)) {

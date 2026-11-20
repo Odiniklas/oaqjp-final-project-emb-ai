@@ -28,7 +28,7 @@ async function artInit() {
   if (!ART.db && !ART.sample) return;
   ART.on = true;
   document.documentElement.classList.add('art');
-  if (ART.sample) { try { const l = await ART.sample.limits(); ART.imgMax = l && l.images ? l.images.maxCount : 0; } catch (e) { ART.imgMax = 0; } }
+  if (ART.sample) { try { const l = await ART.sample.limits(); ART.imgMax = l && l.images ? l.images.maxCount : 0; ART.toolMax = l && l.tools ? l.tools.maxCount : 0; } catch (e) { ART.imgMax = 0; ART.toolMax = 0; } }
   if (!ART.db) { render(); return; }
   if (typeof ttInit === 'function') ttInit();
   const loadTimer = setTimeout(() => { if (!ART.ready) toast('Deine Daten bei Claude sind gerade nicht erreichbar – du siehst den zuletzt gespeicherten Stand.'); }, 10000);
