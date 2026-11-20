@@ -8,6 +8,7 @@ const LIFE_CATS = [
   ['vers', 'Versicherungen', '🛡️', ['Privathaftpflicht', 'Hausrat', 'Berufsunfähigkeit', 'Unfall', 'Krankenzusatz', 'Auslandsreise-Kranken']],
   ['vorsorge', 'Vorsorge & Rente', '🌱', ['Betriebsrente (bAV)', 'Private Rente/ETF', 'Notgroschen']],
   ['vertrag', 'Verträge & Abos', '📄', ['Handy', 'Streaming', 'Fitnessstudio', 'Software/Cloud', 'Zeitungen']],
+  ['alltag', 'Alltag & Lebensmittel', '🛒', ['Lebensmittel', 'Freizeit', 'Kleidung', 'Restaurant']],
   ['spenden', 'Spenden & Soziales', '💚', []],
   ['sparen', 'Sparen & Investieren', '📈', []],
 ];
@@ -75,6 +76,7 @@ function lifeView() {
     ${Sal ? `<div class="fin-label sm">Gehalt${Sal.month ? ' · ' + esc(Sal.month) : ''}${Sal.employer ? ' · ' + esc(Sal.employer) : ''}</div><div class="life-budget">${Sal.gross ? `<span>Brutto <b>${eur(Sal.gross, 0)}</b></span>` : ''}${Sal.net ? `<span>Netto <b>${eur(Sal.net, 0)}</b></span>` : ''}<span>Auszahlung <b>${eur(Sal.payout || L.income, 0)}</b></span>${T.pay ? `<span>über Gehalt <b>${eur(T.pay, 0)}</b></span>` : ''}</div>${Sal.note ? `<div class="hint">${esc(Sal.note)}</div>` : ''}` : ''}
     <div class="fin-label sm">Monatsbudget</div>
     <div class="life-budget">${L.income != null ? `<span>Auszahlung <b>${eur(L.income, 0)}</b></span><span>− Fixkosten <b>${eur(T.month, 0)}</b></span><span>− Sparen <b>${eur(saveM, 0)}</b></span><span class="${free >= 0 ? 'pos' : 'neg'}">= frei <b>${eur(free, 0)}</b></span>` : `<span class="hint">Nettoeinkommen fehlt – <button class="chip" data-act="lifeIncome">eintragen</button>, dann rechnet der Hub dein freies Budget.</span>`}</div>
+    ${typeof pensCard === 'function' ? '</section>' + pensCard() + '<section class="card wide">' : ''}
     ${T.month ? `<div class="fin-label sm">Fixkosten nach Bereich</div>${finBar(LIFE_CATS.filter(c => c[0] !== 'sparen').map(c => ({ n: c[1], v: T.by[c[0]] || 0 })), T.month || 1)}` : ''}
     ${due.length ? `<div class="fin-label sm">Nächste Fristen</div>${due.slice(0, 5).map(lifeRow).join('')}` : ''}
     <div class="btns"><button class="btn" data-act="lifeEdit" data-id="">+ Vertrag / Versicherung</button>${L.income != null ? '<button class="btn ghost" data-act="lifeIncome">Einkommen ändern</button>' : ''}</div>
@@ -126,6 +128,7 @@ function lifeIncome() {
   });
 }
 function lifeAct(act, b) {
+  if (typeof pensAct === 'function' && pensAct(act)) return true;
   if (act === 'lifeEdit') { lifeEdit(b.dataset.id, b.dataset.cat, b.dataset.name); return true; }
   if (act === 'lifeIncome') { lifeIncome(); return true; }
   return false;
