@@ -8,20 +8,24 @@ const LIFE_CATS = [
   ['vers', 'Versicherungen', '🛡️', ['Privathaftpflicht', 'Hausrat', 'Berufsunfähigkeit', 'Unfall', 'Krankenzusatz', 'Auslandsreise-Kranken']],
   ['vorsorge', 'Vorsorge & Rente', '🌱', ['Betriebsrente (bAV)', 'Private Rente/ETF', 'Notgroschen']],
   ['vertrag', 'Verträge & Abos', '📄', ['Handy', 'Streaming', 'Fitnessstudio', 'Software/Cloud', 'Zeitungen']],
+  ['spenden', 'Spenden & Soziales', '💚', []],
+  ['sparen', 'Sparen & Investieren', '📈', []],
 ];
 const LIFE_ST = ['aktiv', 'Angebot', 'prüfen', 'fehlt', 'gekündigt'];
 const LIFE_PER = [['monat', 'monatlich', 1], ['quartal', 'vierteljährlich', 1 / 3], ['halbjahr', 'halbjährlich', 1 / 6], ['jahr', 'jährlich', 1 / 12], ['einmalig', 'einmalig', 0]];
 let lifeOpen = '';
 function life() { S.life = Object.assign({ income: null, items: [] }, S.life || {}); if (!Array.isArray(S.life.items)) S.life.items = []; return S.life; }
-const lifeMonthly = it => { const c = Number(it.cost); if (!isFinite(c) || it.status === 'gekündigt' || it.status === 'Angebot' || it.status === 'fehlt') return 0; return c * ((LIFE_PER.find(p => p[0] === it.per) || LIFE_PER[0])[2]); };
+const lifeNorm = it => { const c = Number(it.cost); if (!isFinite(c) || it.status === 'gekündigt' || it.status === 'Angebot' || it.status === 'fehlt') return 0; return c * ((LIFE_PER.find(p => p[0] === it.per) || LIFE_PER[0])[2]); };
+const lifeMonthly = it => { const c = Number(it.cost); if (it.payroll || it.cat === 'sparen' || !isFinite(c) || it.status === 'gekündigt' || it.status === 'Angebot' || it.status === 'fehlt') return 0; return c * ((LIFE_PER.find(p => p[0] === it.per) || LIFE_PER[0])[2]); };
 function lifeTotals() {
   const L = life(), by = {}; let m = 0, missing = 0;
   L.items.forEach(it => { const v = lifeMonthly(it); m += v; by[it.cat] = (by[it.cat] || 0) + v; if (it.status === 'aktiv' && !(Number(it.cost) > 0) && it.per !== 'einmalig') missing++; });
-  return { month: m, year: m * 12, by, missing, n: L.items.filter(x => x.status === 'aktiv').length };
+  const save = L.items.filter(x => x.cat === 'sparen').reduce((s, x) => s + lifeNorm(x), 0), pay = L.items.filter(x => x.payroll).reduce((s, x) => s + lifeNorm(x), 0);
+  return { month: m, year: m * 12, by, missing, save, pay, n: L.items.filter(x => x.status === 'aktiv').length };
 }
 function lifeDue(days) {
   const t = H.today(), lim = H.add(t, days || 60);
-  return life().items.filter(it => it.next && it.next <= lim && it.status !== 'gekündigt').sort((a, b) => a.next.localeCompare(b.next));
+  return life().items.filter(it => it.next && it.next <= lim && it.status !== 'gekündigt' && !(it.status === 'aktiv' && ['monat', 'quartal', 'halbjahr', 'jahr'].includes(it.per) && !it.end)).sort((a, b) => a.next.localeCompare(b.next));
 }
 /* Werkzeug für Odi und Claude-Jobs */
 function lifeTool(name, x) {
@@ -37,15 +41,18 @@ function lifeTool(name, x) {
     if (LIFE_PER.some(p => p[0] === x.per)) it.per = x.per;
     ['start', 'end', 'next'].forEach(f => { if (/^\d{4}-\d{2}-\d{2}$/.test(x[f] || '')) it[f] = x[f]; });
     if (LIFE_ST.includes(x.status)) it.status = x.status;
+    if (x.payroll != null) it.payroll = !!x.payroll;
     return { label: (isNew ? '🏠 Neu: ' : '🏠 Aktualisiert: ') + it.name + (it.cost ? ' · ' + eur(it.cost) + ' ' + (LIFE_PER.find(p => p[0] === it.per) || [, ''])[1] : ''), result: 'gespeichert, id=' + it.id };
   }
-  if (name === 'set_income') { const v = Number(String(x.net).replace(',', '.')); if (!isFinite(v)) throw new Error('Betrag fehlt'); life().income = v; return { label: '💶 Nettoeinkommen ' + eur(v, 0) + '/Monat', result: 'ok' }; }
+  if (name === 'set_income') { const v = Number(String(x.net).replace(',', '.')); if (!isFinite(v)) throw new Error('Betrag fehlt'); const L = life(); L.income = v;
+    if (x.gross != null || x.netPay != null || x.employer) L.salary = Object.assign({}, L.salary || {}, { gross: Number(x.gross) || (L.salary || {}).gross || null, net: Number(x.netPay) || (L.salary || {}).net || null, payout: v, month: x.month || (L.salary || {}).month || '', employer: x.employer || (L.salary || {}).employer || '', note: x.note || (L.salary || {}).note || '' });
+    return { label: '💶 Auszahlung ' + eur(v, 0) + '/Monat', result: 'ok' }; }
   return null;
 }
 const LIFE_TOOLS = [
   { name: 'set_contract', description: 'Vertrag/Versicherung/Abo im Bereich Leben anlegen oder ändern (Miete, Nebenkosten, Strom, Kfz, Versicherungen, Handy, Abos, Vorsorge). Keine Vertrags-, Policen- oder Kundennummern speichern.',
-    input_schema: { type: 'object', additionalProperties: false, required: ['name'], properties: { id: { type: 'string' }, name: { type: 'string' }, cat: { type: 'string', enum: LIFE_CATS.map(c => c[0]) }, provider: { type: 'string' }, cost: { type: 'number', description: 'Betrag in EUR je Zahlungsrhythmus' }, per: { type: 'string', enum: LIFE_PER.map(p => p[0]) }, start: { type: 'string' }, end: { type: 'string' }, next: { type: 'string', description: 'nächste Fälligkeit oder Kündigungs-/Prüffrist JJJJ-MM-TT' }, notice: { type: 'string', description: 'Kündigungsfrist, z. B. 3 Monate zum Jahresende' }, status: { type: 'string', enum: LIFE_ST }, note: { type: 'string' } } } },
-  { name: 'set_income', description: 'Monatliches Nettoeinkommen in EUR für das Budget setzen.', input_schema: { type: 'object', additionalProperties: false, required: ['net'], properties: { net: { type: 'number' } } } }
+    input_schema: { type: 'object', additionalProperties: false, required: ['name'], properties: { id: { type: 'string' }, name: { type: 'string' }, cat: { type: 'string', enum: LIFE_CATS.map(c => c[0]), description: 'sparen = Sparpläne/Überweisungen ans Depot, spenden = Spenden' }, provider: { type: 'string' }, cost: { type: 'number', description: 'Betrag in EUR je Zahlungsrhythmus' }, payroll: { type: 'boolean', description: 'wird schon vom Gehalt abgezogen (z. B. Jobrad, bAV) – zählt nicht zu den Fixkosten' }, per: { type: 'string', enum: LIFE_PER.map(p => p[0]) }, start: { type: 'string' }, end: { type: 'string' }, next: { type: 'string', description: 'nächste Fälligkeit oder Kündigungs-/Prüffrist JJJJ-MM-TT' }, notice: { type: 'string', description: 'Kündigungsfrist, z. B. 3 Monate zum Jahresende' }, status: { type: 'string', enum: LIFE_ST }, note: { type: 'string' } } } },
+  { name: 'set_income', description: 'Monatliche Auszahlung (netto aufs Konto) für das Budget setzen; optional Brutto, Netto laut Abrechnung, Monat, Arbeitgeber.', input_schema: { type: 'object', additionalProperties: false, required: ['net'], properties: { net: { type: 'number', description: 'Auszahlung aufs Konto' }, gross: { type: 'number' }, netPay: { type: 'number' }, month: { type: 'string' }, employer: { type: 'string' }, note: { type: 'string' } } } }
 ];
 function lifeSnapshotText() { const L = life(), T = lifeTotals(); return JSON.stringify({ netto: L.income, fixkostenMonat: Math.round(T.month), vertraege: L.items.map(i => [i.id, i.cat, i.name, i.provider, i.cost, i.per, i.status, i.next, i.notice]) }); }
 
@@ -57,17 +64,18 @@ function lifeRow(it) {
   return `<div class="row life-row"><button class="t" data-act="lifeEdit" data-id="${it.id}">${esc(it.name)}<small>${esc([it.provider, it.notice ? 'Kündigung: ' + it.notice : '', it.note].filter(Boolean).join(' · '))}</small></button>
     ${it.next ? `<span class="chip ${soon ? 'due' : 'd'}">${esc(H.fd(it.next))}</span>` : ''}
     <span class="life-cost">${Number(it.cost) > 0 ? eur(it.cost, 2) + `<small>${per[1]}${per[0] !== 'monat' && m ? ' · ' + eur(m, 0) + '/Mon.' : ''}</small>` : (it.status === 'aktiv' && it.per !== 'einmalig' ? '<small class="warn-t">Betrag fehlt</small>' : '')}</span>
-    <span class="chip ${lifeStCls(it.status)}">${esc(it.status)}</span></div>`;
+    ${it.payroll ? '<span class="chip d">über Gehalt</span>' : ''}<span class="chip ${lifeStCls(it.status)}">${esc(it.status)}</span></div>`;
 }
 function lifeView() {
   const L = life(), T = lifeTotals(), due = lifeDue(60), plans = (typeof fin === 'function' ? fin().plans : []).reduce((s, x) => s + (x.amount || 0), 0);
-  const free = L.income != null ? L.income - T.month - plans : null;
+  const saveM = T.save || plans, free = L.income != null ? L.income - T.month - saveM : null, Sal = L.salary;
   let h = `<section class="card wide life-hero"><div class="fin-label">Leben · Fixkosten</div>
     <div class="fin-total">${T.month ? eur(T.month, 0) : '–'}<small class="life-sub"> / Monat</small></div>
     ${finKpis([['Pro Jahr', T.year ? eur(T.year, 0) : '–'], ['Aktive Verträge', String(T.n)], ['Beträge fehlen', String(T.missing), T.missing ? 'neg' : ''], ['Fristen (60 T.)', String(due.length)]])}
+    ${Sal ? `<div class="fin-label sm">Gehalt${Sal.month ? ' · ' + esc(Sal.month) : ''}${Sal.employer ? ' · ' + esc(Sal.employer) : ''}</div><div class="life-budget">${Sal.gross ? `<span>Brutto <b>${eur(Sal.gross, 0)}</b></span>` : ''}${Sal.net ? `<span>Netto <b>${eur(Sal.net, 0)}</b></span>` : ''}<span>Auszahlung <b>${eur(Sal.payout || L.income, 0)}</b></span>${T.pay ? `<span>über Gehalt <b>${eur(T.pay, 0)}</b></span>` : ''}</div>${Sal.note ? `<div class="hint">${esc(Sal.note)}</div>` : ''}` : ''}
     <div class="fin-label sm">Monatsbudget</div>
-    <div class="life-budget">${L.income != null ? `<span>Netto <b>${eur(L.income, 0)}</b></span><span>− Fixkosten <b>${eur(T.month, 0)}</b></span><span>− Sparpläne <b>${eur(plans, 0)}</b></span><span class="${free >= 0 ? 'pos' : 'neg'}">= frei <b>${eur(free, 0)}</b></span>` : `<span class="hint">Nettoeinkommen fehlt – <button class="chip" data-act="lifeIncome">eintragen</button>, dann rechnet der Hub dein freies Budget.</span>`}</div>
-    ${T.month ? `<div class="fin-label sm">Fixkosten nach Bereich</div>${finBar(LIFE_CATS.map(c => ({ n: c[1], v: T.by[c[0]] || 0 })), T.month || 1)}` : ''}
+    <div class="life-budget">${L.income != null ? `<span>Auszahlung <b>${eur(L.income, 0)}</b></span><span>− Fixkosten <b>${eur(T.month, 0)}</b></span><span>− Sparen <b>${eur(saveM, 0)}</b></span><span class="${free >= 0 ? 'pos' : 'neg'}">= frei <b>${eur(free, 0)}</b></span>` : `<span class="hint">Nettoeinkommen fehlt – <button class="chip" data-act="lifeIncome">eintragen</button>, dann rechnet der Hub dein freies Budget.</span>`}</div>
+    ${T.month ? `<div class="fin-label sm">Fixkosten nach Bereich</div>${finBar(LIFE_CATS.filter(c => c[0] !== 'sparen').map(c => ({ n: c[1], v: T.by[c[0]] || 0 })), T.month || 1)}` : ''}
     ${due.length ? `<div class="fin-label sm">Nächste Fristen</div>${due.slice(0, 5).map(lifeRow).join('')}` : ''}
     <div class="btns"><button class="btn" data-act="lifeEdit" data-id="">+ Vertrag / Versicherung</button>${L.income != null ? '<button class="btn ghost" data-act="lifeIncome">Einkommen ändern</button>' : ''}</div>
     <div class="hint">Tipp: Screenshot von Police, Mietvertrag oder Kontoauszug an Odi schicken – Beträge, Fristen und Anbieter werden eingetragen (ohne Vertragsnummern).</div></section>`;
