@@ -116,6 +116,9 @@ function routineRow(r, t) {
   return `<div class="row ${r.last === t && !st.due ? 'done' : ''}">${btn}<button class="t" data-act="redit" data-id="${r.id}">${tag}${esc(r.n)}<small>${meta}</small></button>${chip}</div>`;
 }
 
+function upCard() {
+  return `<button class="upbig" data-act="dup"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg><span>Dokumente hochladen<small>PDF, Fotos, Screenshots, Office, ZIP</small></span></button>`;
+}
 function listCard(c, opts) {
   const o = opts || {};
   let L = S.lists[c.k].map((it, i) => Object.assign({}, it, { i }));
@@ -148,7 +151,7 @@ function viewToday() {
   const doneT = S.routines.filter(r => r.last === t && !H.state(r, t).due);
   const total = due.length + doneT.length;
   const pct = total ? Math.round(doneT.length / total * 100) : 100;
-  let h = searchCard() + (typeof weatherCard === 'function' ? weatherCard() : '') + (typeof calTodayCard === 'function' ? calTodayCard() : '') + (typeof musicCard === 'function' ? musicCard() : '') + `<section class="card wide"><h2>Heute zu tun<small>${doneT.length} von ${total} erledigt</small></h2><div class="bar"><i style="width:${pct}%"></i></div>
+  let h = searchCard() + upCard() + (typeof weatherCard === 'function' ? weatherCard() : '') + (typeof calTodayCard === 'function' ? calTodayCard() : '') + (typeof musicCard === 'function' ? musicCard() : '') + `<section class="card wide"><h2>Heute zu tun<small>${doneT.length} von ${total} erledigt</small></h2><div class="bar"><i style="width:${pct}%"></i></div>
     ${due.map(r => routineRow(r, t)).join('')}${doneT.map(r => routineRow(r, t)).join('')}
     ${!total ? '<div class="empty">Heute stehen keine Routinen an.</div>' : !due.length ? '<div class="empty">Alles erledigt. Gute Arbeit!</div>' : ''}</section>`;
 
@@ -230,7 +233,7 @@ function render() {
   else if (TAB === 'cal') h = typeof calView === 'function' ? calView() : '';
   else if (TAB === 'settings') h = viewSettings();
   else if (TAB === 'chat') h = typeof viewChat === 'function' ? viewChat() : '';
-  else h = (TAB === 'money' && typeof finView === 'function' ? finView() : '') + (TAB === 'health' && typeof healthView === 'function' ? healthView() : '') + (TAB === 'files' && typeof brainView === 'function' ? brainView() : '') + (TAB === 'files' && typeof knowView === 'function' ? knowView() + '<h2 class="sect">Ablage – deine Unterlagen</h2>' : '') + C.filter(c => c.tab === TAB && !(c.hideEmpty && !S.lists[c.k].length)).map(c => listCard(c)).join('') + (typeof docsCard === 'function' && TAB !== 'files' ? docsCard(TAB) : '');
+  else h = (TAB === 'money' && typeof finView === 'function' ? finView() : '') + (TAB === 'health' && typeof healthView === 'function' ? healthView() : '') + (TAB === 'files' ? upCard() : '') + (TAB === 'files' && typeof brainView === 'function' ? brainView() : '') + (TAB === 'files' && typeof knowView === 'function' ? knowView() + '<h2 class="sect">Ablage – deine Unterlagen</h2>' : '') + C.filter(c => c.tab === TAB && !(c.hideEmpty && !S.lists[c.k].length)).map(c => listCard(c)).join('') + (typeof docsCard === 'function' && TAB !== 'files' ? docsCard(TAB) : '');
   $('body').innerHTML = h;
   if (TAB === 'chat' && typeof scrollChat === 'function') scrollChat();
   if (TAB === 'settings') $('theme').value = S.settings.theme;
