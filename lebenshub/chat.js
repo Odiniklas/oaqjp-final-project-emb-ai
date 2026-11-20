@@ -148,6 +148,7 @@ function finishTurn(reply, actions, snap, err, cost) {
   if (actions.length) save(); else render();
   scrollChat();
   if ((speakOn || viaVoice || talkMode) && reply && !err) speak(reply, talkMode);
+  if (typeof odiRefocus === 'function') odiRefocus();
   else if (talkMode && !err) setTimeout(listen, 400);
 }
 
@@ -166,7 +167,7 @@ async function sendChat(text) {
     const content = [];
     for (const f of turn.files) content.push(await toBlock(f));
     content.push({ type: 'text', text: hubSnapshot() + '\n\n' + (text || 'Bitte auswerten und in den Hub übernehmen.') +
-      (viaVoice || talkMode ? '\n\n(Per Sprache – Antwort wird vorgelesen: höchstens 2 kurze Sätze, keine Aufzählungen.)' : '') });
+      (viaVoice || talkMode || location.hash === '#odi' ? '\n\n(Per Sprache – Antwort wird vorgelesen: höchstens 2 kurze Sätze, keine Aufzählungen.)' : '') });
     const msgs = history().concat([{ role: 'user', content }]);
     for (let i = 0; i < 8; i++) {
       let res;
@@ -212,7 +213,7 @@ async function sendArt(text) {
     if (images.length) extra += '\n[' + Math.min(images.length, ART.imgMax) + ' Bild(er) angehängt]';
     const turns = [{ role: 'user', content: sysText() + '\nDie Werkzeuge sind Funktionen dieser App; rufe sie direkt auf.' }].concat(history(),
       [{ role: 'user', content: hubSnapshot() + extra + '\n\n' + (text || 'Bitte auswerten und in den Hub übernehmen.') +
-        (viaVoice || talkMode ? '\n\n(Per Sprache – Antwort wird vorgelesen: höchstens 2 kurze Sätze, keine Aufzählungen.)' : '') }]);
+        (viaVoice || talkMode || location.hash === '#odi' ? '\n\n(Per Sprache – Antwort wird vorgelesen: höchstens 2 kurze Sätze, keine Aufzählungen.)' : '') }]);
     chatCtl = new AbortController();
     const res = await ART.sample(turns, {
       cache: false, signal: chatCtl.signal, modelTier: pref('tier', 'default'), effort: 'low',
@@ -397,7 +398,7 @@ function viewChatArt() {
       ${ART.dictation ? `<button class="chip ${talkMode ? 'due' : 'd'}" data-act="ctalk">${talkMode ? '🎙 Gespräch läuft' : '🎙 Gespräch'}</button>` : ''}
       <button class="chip ${speakOn ? '' : 'd'}" data-act="ctts">${speakOn ? '🔊 Vorlesen an' : '🔈 Vorlesen aus'}</button>
       ${CHAT.length ? '<button class="chip d" data-act="cclear">Leeren</button>' : ''}</small></h2>
-    <div class="msgs" id="msgs">${msgs}${chatBusy ? `<div class="msg assistant"><div class="typing stream" id="stream">${esc(chatStream || 'Claude denkt nach …')}</div><button class="chip d" data-act="cstop">Stopp</button></div>` : ''}${recog ? '<div class="msg user"><div class="typing">Ich höre zu …</div></div>' : ''}</div>
+    ${typeof odiOrb === 'function' ? odiOrb() : ''}<div class="msgs" id="msgs">${msgs}${chatBusy ? `<div class="msg assistant"><div class="typing stream" id="stream">${esc(chatStream || 'Claude denkt nach …')}</div><button class="chip d" data-act="cstop">Stopp</button></div>` : ''}${recog ? '<div class="msg user"><div class="typing">Ich höre zu …</div></div>' : ''}</div>
     ${chatFiles.length ? `<div class="hint">📎 ${chatFiles.map(f => esc(f.name)).join(', ')} <button class="chip d" data-act="cfclear">entfernen</button></div>` : ''}
     <div class="chatbar"><button class="icon-btn" data-act="cattach" aria-label="Foto oder PDF anhängen">＋</button>
       <textarea id="chatIn" rows="1" placeholder="Schreiben …" ${chatBusy ? 'disabled' : ''}>${esc(chatDraft)}</textarea>
@@ -484,8 +485,6 @@ function odiAct(act) {
 function odiWake() {
   if (location.hash !== '#odi') return;
   TAB = 'chat'; speakOn = true;
-  const last = CHAT[CHAT.length - 1];
-  if (!last || !last.wake || Date.now() - last.at > 60000) CHAT.push({ role: 'assistant', local: true, wake: true, at: Date.now(), text: (odi().sir ? 'Ja, Sir?' : 'Ja?') + ' Ich höre – tippe aufs Mikrofon der Tastatur und sprich.' });
-  saveChat(); render(); setTimeout(() => { const i = $('chatIn'); if (i) i.focus(); }, 200);
+  odiAwake = false; render(); scrollChat();
 }
 window.addEventListener('hashchange', odiWake);
