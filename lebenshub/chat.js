@@ -352,7 +352,7 @@ function noTts() {
   if (ART.tts) { ttsFail = true; return; }
   if (!ttsFail) { ttsFail = true; toast('Vorlesen ist in dieser Ansicht gesperrt – den Lebenshub in Safari öffnen (siehe ⚙︎ → Odi).'); if ($('odiVoice')) render(); }
 }
-let dictWired = false;
+let dictWired = false, srBlocked = false;
 function listen() {
   if (ART.dictation) { // Claude-Diktat (Desktop/Chrome)
     const d = ART.dictation;
@@ -365,16 +365,15 @@ function listen() {
     d.start({ language: 'de' }).catch(e => { if (e && e.code !== 'stopped') { talkMode = false; toast('Diktat nicht möglich – nutze das Mikrofon der Tastatur.'); render(); } });
     return;
   }
-  if (ART.on) { talkMode = false; toast('Tipp: Tippe ins Textfeld und nutze das Mikrofon auf der iPhone-Tastatur.'); render(); const i = $('chatIn'); if (i) i.focus(); return; }
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR) { talkMode = false; toast('Tipp: Nutze das Mikrofon auf der iPhone-Tastatur zum Diktieren.'); render(); const i = $('chatIn'); if (i) i.focus(); return; }
+  if (!SR || srBlocked) { talkMode = false; toast('Tipp: Nutze das Mikrofon auf der iPhone-Tastatur zum Diktieren.'); render(); const i = $('chatIn'); if (i) i.focus(); return; }
   if (recog && recog !== 'dict') { recog.stop(); return; }
   try { speechSynthesis.cancel(); } catch (e) { /* egal */ }
   recog = new SR(); recog.lang = 'de-DE'; recog.interimResults = true; recog.continuous = false;
   let finalText = '';
   recog.onresult = e => { let s = ''; for (const r of e.results) s += r[0].transcript; finalText = s; const i = $('chatIn'); if (i) i.value = s; chatDraft = s; };
   recog.onend = () => { recog = null; if (finalText.trim()) { viaVoice = true; sendChat(finalText); } else { if (talkMode) { talkMode = false; toast('Gesprächsmodus beendet.'); } render(); } };
-  recog.onerror = e => { recog = null; talkMode = false; render(); if (e.error === 'not-allowed' || e.error === 'service-not-allowed') toast('Mikrofon nicht erlaubt – in den iPhone-Einstellungen freigeben oder Tastatur-Diktat nutzen.'); };
+  recog.onerror = e => { recog = null; talkMode = false; if (e.error === 'not-allowed' || e.error === 'service-not-allowed' || e.error === 'audio-capture') { srBlocked = true; toast(ART.on ? 'Mikrofon ist in dieser Ansicht gesperrt – nutze das 🎤 der Tastatur (oder den Lebenshub in Safari öffnen).' : 'Mikrofon nicht erlaubt – in den iPhone-Einstellungen freigeben oder Tastatur-Diktat nutzen.'); const i = $('chatIn'); if (i) i.focus(); } render(); };
   try { recog.start(); } catch (e) { recog = null; }
   render();
 }
@@ -413,9 +412,9 @@ function msgHtml(m, i) {
 function viewChatArt() {
   const msgs = CHAT.filter(m => !m.local).map((m, i, a) => msgHtml(m, i === a.length - 1 ? CHAT.length - 1 : -1)).join('')
     || '<div class="hint">Erzähl mir, was ansteht, oder häng ein Foto/PDF an – ich trage alles in deinen Hub ein. Zum Beispiel: „Dienstag 10 Uhr Physio wegen dem Knie“, „Depot steht bei 22.000 €“ oder „Was steht diese Woche an?“ Läuft über dein Claude-Abo.</div>';
-  const voice = ART.dictation || !ART.on;
+  const voice = true;
   return `<section class="card wide chat"><h2>${odi().on ? esc(odi().name) : 'Assistent'}<small class="chips">
-      ${ART.dictation ? `<button class="chip ${talkMode ? 'due' : 'd'}" data-act="ctalk">${talkMode ? '🎙 Gespräch läuft' : '🎙 Gespräch'}</button>` : ''}
+      <button class="chip ${talkMode ? 'due' : 'd'}" data-act="ctalk">${talkMode ? '🎙 Gespräch läuft' : '🎙 Gespräch'}</button>
       <button class="chip ${speakOn ? '' : 'd'}" data-act="ctts">${speakOn ? '🔊 Vorlesen an' : '🔈 Vorlesen aus'}</button>
       ${CHAT.length ? '<button class="chip d" data-act="cclear">Leeren</button>' : ''}</small></h2>
     ${typeof odiOrb === 'function' ? odiOrb() : ''}<div class="msgs" id="msgs">${msgs}${chatBusy ? `<div class="msg assistant"><div class="typing stream" id="stream">${esc(chatStream || 'Claude denkt nach …')}</div><button class="chip d" data-act="cstop">Stopp</button></div>` : ''}${recog ? '<div class="msg user"><div class="typing">Ich höre zu …</div></div>' : ''}</div>

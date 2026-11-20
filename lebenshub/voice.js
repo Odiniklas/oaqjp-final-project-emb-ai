@@ -61,21 +61,34 @@ function odiLocal(q) {
   if (/^(danke|merci)/.test(s)) return 'Stets zu Diensten' + sirP() + '.';
   return null;
 }
+/* Sprachbefehle, die direkt in der App ausgeführt werden (ohne Claude) */
+const ODI_NAV = [[/heute|start|übersicht|home/, 'today'], [/kalender|termine/, 'cal'], [/routine/, 'routines'], [/arbeit|bewerbung|job/, 'work'], [/finanz|depot|geld|aktie|krypto|portfolio/, 'money'], [/leben|vertr[aä]g|versicherung|miete|wohnung|auto|mobilit/, 'life'], [/gesundheit|schlaf|erholung|training|essen/, 'health'], [/wissen|gehirn|tiktok|dokument|ablage/, 'files'], [/einstellung/, 'settings'], [/odi|assistent|chat/, 'chat']];
+function odiCommand(q) {
+  const s = q.toLowerCase().trim().replace(/[.!?]+$/, '');
+  if (/^(stopp?|halt|ruhe|sei still|aufhören|ende|tschüss|danke,? das war'?s)$/.test(s)) { try { speechSynthesis.cancel(); } catch (e) { /* egal */ } talkMode = false; return 'Sehr wohl' + sirP() + '.'; }
+  if (/^(lies|lese) (das |es )?(noch ?mal )?vor$|^wiederhol/.test(s)) { const last = [...CHAT].reverse().find(m => m.role === 'assistant'); return last ? last.text : 'Es gibt noch nichts vorzulesen.'; }
+  const m = s.match(/^(öffne|zeig(e)?( mir)?|geh(e)?( zu| in)?|wechsel(e)?( zu| in)?|bring mich zu|navigier(e)?( zu)?)\s+(die |den |das |zu |zum |zur |in )*(.+)$/);
+  if (m) { const tgt = ODI_NAV.find(n => n[0].test(m[m.length - 1])); if (tgt) { odiGo = tgt[1]; return 'Öffne ' + ((TABS.find(t => t[0] === tgt[1]) || [, tgt[1]])[1]) + sirP() + '.'; } }
+  if (/hochladen|dokument.*(hinzufügen|speichern)/.test(s) && !/^(was|wie|welche)/.test(s)) return 'Gern' + sirP() + ' – tippe oben auf den Pfeil nach oben, dann wählst du die Dateien.';
+  return null;
+}
+let odiGo = '';
 const _sendChat = sendChat;
 sendChat = async function (text) {
   const t = (text || '').trim();
-  const a = !chatBusy && !chatFiles.length && odi().on ? odiLocal(t) : null;
+  const a = !chatBusy && !chatFiles.length ? (odiCommand(t) || (odi().on ? odiLocal(t) : null)) : null;
   if (a == null) return _sendChat(text);
   CHAT.push({ role: 'user', text: t, voice: viaVoice, at: Date.now() }, { role: 'assistant', text: a, actions: [], at: Date.now() });
   chatDraft = ''; viaVoice = false; saveChat(); render(); scrollChat();
-  speak(a); odiRefocus();
+  speak(a, talkMode && !odiGo);
+  if (odiGo) { const g = odiGo; odiGo = ''; talkMode = false; setTimeout(() => { TAB = g; render(); scrollTo(0, 0); }, 900); } else odiRefocus();
 };
 function odiRefocus() { if (location.hash === '#odi') setTimeout(() => { const i = $('chatIn'); if (i) i.focus(); }, 150); }
 let odiAwake = false;
 function odiOrb() {
   if (!odi().on || location.hash !== '#odi') return '';
   return `<button class="orb ${odiAwake ? 'on' : ''}" data-act="odiOrb" aria-label="${esc(odi().name)} aktivieren"><span></span></button>
-    <div class="hint" style="text-align:center">${odiAwake ? 'Frag mich etwas – Mikrofon auf der Tastatur antippen, sprechen, Senden. Z. B. „Wie ist das Wetter?“, „Was steht heute an?“' : 'Antippen – ' + esc(odi().name) + ' meldet sich mit deinem Tagesüberblick.'}</div>`;
+    <div class="hint" style="text-align:center">${odiAwake ? (talkMode ? 'Ich höre zu … sprich einfach. Befehle: „Öffne Finanzen“, „Trag morgen 10 Uhr Physio ein“, „Stopp“.' : 'Frag mich etwas – 🎤 antippen und sprechen. Z. B. „Wie ist das Wetter?“, „Öffne Kalender“, „Trag morgen 10 Uhr Physio ein“.') : 'Antippen – ' + esc(odi().name) + ' meldet sich mit deinem Tagesüberblick.'}</div>`;
 }
 function odiOrbAct(act) {
   if (act !== 'odiOrb') return false;
@@ -83,7 +96,8 @@ function odiOrbAct(act) {
   const b = briefing();
   CHAT.push({ role: 'assistant', text: b, actions: [], at: Date.now() });
   saveChat(); render(); scrollChat();
-  const i = $('chatIn'); if (i) i.focus(); // im Tipp-Ereignis: Tastatur geht auf, Mikrofon ist ein Tipp entfernt
-  speak(b);
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (SR && !srBlocked) { talkMode = true; speak(b, true); } // danach hört Odi automatisch zu
+  else { const i = $('chatIn'); if (i) i.focus(); speak(b); } // sonst: Tastatur offen, 🎤 der Tastatur nutzen
   return true;
 }
