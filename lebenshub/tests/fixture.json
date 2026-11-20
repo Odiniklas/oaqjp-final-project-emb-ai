@@ -1,0 +1,35 @@
+{
+  "settings": { "theme": "auto" },
+  "lists": {
+    "t": [{ "id": "t1", "n": "Testtermin Zahnarzt", "t": "10:30", "d": "2030-01-15", "s": 0 }],
+    "n": [{ "id": "n1", "n": "Testaufgabe", "t": "", "d": "", "s": 0 }],
+    "p": [{ "id": "p1", "n": "Beispiel AG", "t": "Watchlist", "d": "", "s": 0 }]
+  },
+  "routines": [{ "id": "r1", "name": "Testroutine", "freq": "weekly", "time": "10:00", "note": "" }],
+  "fin": {
+    "accounts": [{ "id": "a1", "name": "Testdepot", "kind": "depot", "cash": 500 }],
+    "positions": [
+      { "id": "x1", "acc": "a1", "name": "Welt-ETF Test", "isin": "XX0000000001", "qty": 10, "buy": 80, "price": 100, "date": "2026-11-01" },
+      { "id": "x2", "acc": "a1", "name": "Krypto Test", "value": 250, "cost": 200, "date": "2026-11-01" }
+    ],
+    "history": [],
+    "plans": [{ "id": "pl1", "account": "a1", "name": "Sparplan Test", "amount": 100, "next": "2030-01-02" }],
+    "goals": []
+  },
+  "life": {
+    "income": 2500,
+    "salary": { "gross": 4000, "net": 2600, "payout": 2500 },
+    "items": [
+      { "id": "l1", "cat": "wohnen", "name": "Miete Test", "cost": 600, "per": "monat", "status": "aktiv" },
+      { "id": "l2", "cat": "vers", "name": "Haftpflicht Test", "cost": 60, "per": "jahr", "status": "aktiv" },
+      { "id": "l3", "cat": "vorsorge", "name": "bAV Test", "cost": 100, "per": "monat", "status": "aktiv", "payroll": true },
+      { "id": "l4", "cat": "sparen", "name": "Sparrate Test", "cost": 300, "per": "monat", "status": "aktiv" },
+      { "id": "l5", "cat": "vers", "name": "Angebot Test", "cost": 50, "per": "monat", "status": "Angebot" }
+    ],
+    "pension": { "birth": 1995, "age": 67, "epBefore": 2, "gross": 48000 }
+  },
+  "know": [
+    { "id": "k1", "title": "Testwissen Batteriespeicher", "kind": "Notiz", "url": "", "source": "Test", "summary": "Synthetischer Eintrag.", "points": ["Punkt A"], "tags": ["Test"], "status": "Gelesen", "added": "2026-11-20" }
+  ],
+  "brain": { "links": [{ "a": "k1", "b": "p1", "why": "Test" }], "insights": [], "topics": {}, "questions": [], "grown": "" }
+}
