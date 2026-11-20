@@ -30,6 +30,7 @@ async function artInit() {
   document.documentElement.classList.add('art');
   if (ART.sample) { try { const l = await ART.sample.limits(); ART.imgMax = l && l.images ? l.images.maxCount : 0; } catch (e) { ART.imgMax = 0; } }
   if (!ART.db) { render(); return; }
+  if (typeof ttInit === 'function') ttInit();
   const loadTimer = setTimeout(() => { if (!ART.ready) toast('Deine Daten bei Claude sind gerade nicht erreichbar – du siehst den zuletzt gespeicherten Stand.'); }, 10000);
   ART.db.doc('hub/state').onSnapshot(snap => {
     if (snap.metadata.hasPendingWrites) return;
