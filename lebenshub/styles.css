@@ -128,3 +128,5 @@ h2.sect{grid-column:1/-1;font-size:13px;text-transform:uppercase;letter-spacing:
 .macro{display:flex;gap:16px;font-size:13px;color:var(--mut);margin:2px 0 6px}.macro b{color:var(--tx)}
 .spark{width:140px;height:32px;display:block}.spark path{fill:none;stroke:var(--ac);stroke-width:2;vector-effect:non-scaling-stroke}
 .spark.ok path{stroke:var(--ok)}.spark.bad path{stroke:var(--wr)}
+.mailbtns{display:flex;gap:6px;flex:none}.mail .t .chip{font-size:10px;padding:2px 7px;vertical-align:1px}
+.msg .wa{display:inline-block;margin-top:6px;text-decoration:none}
