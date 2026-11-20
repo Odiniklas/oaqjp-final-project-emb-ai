@@ -7,6 +7,7 @@ const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&a
 const uid = () => Math.random().toString(36).slice(2, 9) + Date.now().toString(36).slice(-3);
 
 const ICON = {
+  life: '<path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-5h4v5"/>',
   cal: '<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/>',
   today: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
   routines: '<path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/>',
@@ -16,7 +17,7 @@ const ICON = {
   chat: '<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/>',
   health: '<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8z"/>'
 };
-const TABS = [['today', 'Heute'], ['cal', 'Kalender'], ['chat', 'Odi'], ['routines', 'Routinen'], ['work', 'Arbeit'], ['money', 'Finanzen'], ['health', 'Gesundheit'], ['files', 'Wissen']];
+const TABS = [['today', 'Heute'], ['cal', 'Kalender'], ['chat', 'Odi'], ['routines', 'Routinen'], ['work', 'Arbeit'], ['money', 'Finanzen'], ['life', 'Leben'], ['health', 'Gesundheit'], ['files', 'Wissen']];
 const BW = ['Entwurf', 'Versandt', 'Termin', 'Stand prüfen', 'Absage'];
 
 /* Listen-Definitionen. Inhalte kommen per Import (Startdaten/Backup) oder werden in der App angelegt. */
@@ -34,7 +35,7 @@ const C = [
   { k: 'p', tab: 'money', compact: 1, title: 'Börse & Portfolio – Watchlist', st: ['Beobachten', 'Prüfen', 'Position'] },
   { k: 'h', tab: 'health', title: 'Gesundheitsdokumente', st: ['Abgelegt', 'Prüfen', 'Fehlt'], date: 1, hint: 'Nur Titel und Fristen, keine Befunde. Du wirst am Vortag erinnert.' },
   { k: 'x', tab: 'health', title: 'Verletzungen & Beschwerden', st: ['Akut', 'In Behandlung', 'Heilt', 'Ausgeheilt'], dn: 1, date: 1, hint: 'Was, seit wann, Behandlung/Arzt als Notiz. Datum = nächster Termin.' },
-  { k: 'v', tab: 'health', title: 'Versicherungen', st: ['Aktiv', 'Angebot', 'Prüfen'], date: 1, hint: 'Fälligkeit/Kündigungsfrist als Datum. Keine Policen-Nummern.' },
+  { k: 'v', tab: 'life-alt', title: 'Versicherungen (alt)', st: ['Aktiv', 'Angebot', 'Prüfen'], date: 1, hint: 'Fälligkeit/Kündigungsfrist als Datum. Keine Policen-Nummern.' },
   { k: 'dw', tab: 'files', title: 'Wohnung', st: ['Abgelegt', 'Prüfen', 'Fehlt'], hint: 'Übersicht deiner Unterlagen: abgelegt, zu prüfen oder fehlend.' },
   { k: 'dm', tab: 'files', title: 'Mobilität', st: ['Abgelegt', 'Prüfen', 'Fehlt'] },
   { k: 'dp', tab: 'files', title: 'Projekte & Forschung', st: ['Abgelegt', 'Prüfen', 'Fehlt'] },
@@ -230,6 +231,7 @@ function render() {
   let h;
   if (TAB === 'today') h = viewToday();
   else if (TAB === 'routines') h = viewRoutines();
+  else if (TAB === 'life') h = typeof lifeView === 'function' ? lifeView() : '';
   else if (TAB === 'cal') h = typeof calView === 'function' ? calView() : '';
   else if (TAB === 'settings') h = viewSettings();
   else if (TAB === 'chat') h = typeof viewChat === 'function' ? viewChat() : '';
@@ -442,7 +444,7 @@ document.addEventListener('click', e => {
     case 'export': download('lebenshub-backup-' + t + '.json', 'application/json', JSON.stringify(S, null, 1)); break;
     case 'import': $('importFile').click(); break;
     case 'reset': askConfirm(ART.db ? 'Wirklich alle Hub-Daten löschen – auf allen Geräten? Mach vorher ein Backup.' : 'Wirklich alle Daten auf diesem Gerät löschen? Mach vorher ein Backup.', 'Alles löschen').then(ok => { if (ok) { const st = S.settings; S = seed(); S.settings = st; save('Zurückgesetzt'); } }); break;
-    default: if (typeof calAct === 'function' && calAct(act, b)) break; if (typeof brainAct === 'function' && brainAct(act, b)) break; if (typeof odiOrbAct === 'function' && odiOrbAct(act, b)) break; if (typeof photoAct === 'function' && photoAct(act, b)) break; if (typeof musicAct === 'function' && musicAct(act, b)) break; if (typeof odiAct === 'function' && odiAct(act, b)) break; if (typeof mailAct === 'function' && mailAct(act, b)) break; if (typeof healthAct === 'function' && healthAct(act, b)) break; if (typeof knowAct === 'function' && knowAct(act, b)) break; if (typeof finAct === 'function' && finAct(act, b)) break; if (typeof docAct === 'function' && docAct(act, b)) break; if (typeof chatAct === 'function') chatAct(act, b); break;
+    default: if (typeof lifeAct === 'function' && lifeAct(act, b)) break; if (typeof calAct === 'function' && calAct(act, b)) break; if (typeof brainAct === 'function' && brainAct(act, b)) break; if (typeof odiOrbAct === 'function' && odiOrbAct(act, b)) break; if (typeof photoAct === 'function' && photoAct(act, b)) break; if (typeof musicAct === 'function' && musicAct(act, b)) break; if (typeof odiAct === 'function' && odiAct(act, b)) break; if (typeof mailAct === 'function' && mailAct(act, b)) break; if (typeof healthAct === 'function' && healthAct(act, b)) break; if (typeof knowAct === 'function' && knowAct(act, b)) break; if (typeof finAct === 'function' && finAct(act, b)) break; if (typeof docAct === 'function' && docAct(act, b)) break; if (typeof chatAct === 'function') chatAct(act, b); break;
     case 'install': if (installEvt) { installEvt.prompt(); installEvt.userChoice.finally(() => { installEvt = null; render(); }); } break;
   }
 });

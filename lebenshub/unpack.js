@@ -54,6 +54,7 @@ async function officeToText(zip, kind) {
 function guessArea(path) {
   const p = path.toLowerCase();
   if (/gesund|arzt|ärzt|kranken|klinik|befund|impf|physio|reha|zahn|aok|tk\b|barmer/.test(p)) return 'health';
+  if (/versicher|police|miet|wohnung|nebenkosten|strom|kfz|fahrzeug|evb|leasing|dienstrad|company.?bike|handy|vertrag|abo\b|kündig|rundfunk/.test(p)) return 'life';
   if (/finanz|bank|konto|depot|trade.?republic|comdirect|steuer|versicher|police|rente|wohnung|miete|kfz|auto|fahrzeug|mobil|rechnung|vertrag|kredit|sparplan|gehalt|lohn/.test(p)) return 'money';
   return 'work';
 }

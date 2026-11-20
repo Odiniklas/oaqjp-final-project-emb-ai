@@ -3,7 +3,7 @@
 'use strict';
 const SDK_URL = './vendor/anthropic-sdk-1.5.0.mjs'; // offizielles SDK (MIT), lokal gebündelt
 const KEY_STORE = 'lebenshub-apikey';
-const AREA = { work: 'Arbeit', money: 'Finanzen', health: 'Gesundheit' };
+const AREA = { work: 'Arbeit', money: 'Finanzen', health: 'Gesundheit', life: 'Leben (Verträge)' };
 let DOCS = []; // Metadaten ohne Dateiinhalt
 let docArea = 'work';
 
@@ -302,7 +302,7 @@ function busy(on) { document.body.classList.toggle('busy', on); }
 function docAct(act, b) {
   if (act === 'dup') {
     openDlg(`<h3>Dokumente hochladen</h3><div class="hint">PDFs, Fotos, Screenshots, Word/Excel/PowerPoint oder ZIP – auch mehrere auf einmal. Danach kann Claude sie analysieren und eintragen.</div>
-      <div class="up-grid"><button class="btn" value="auto">🪄 Automatisch einsortieren</button><button class="btn ghost" value="work">💼 Arbeit</button><button class="btn ghost" value="money">€ Finanzen</button><button class="btn ghost" value="health">❤️ Gesundheit</button></div>
+      <div class="up-grid"><button class="btn" value="auto">🪄 Automatisch einsortieren</button><button class="btn ghost" value="work">💼 Arbeit</button><button class="btn ghost" value="money">€ Finanzen</button><button class="btn ghost" value="health">❤️ Gesundheit</button><button class="btn ghost" value="life">🏠 Leben / Verträge</button></div>
       <div class="hint">Termine auf Fotos? Dafür im Kalender „Termine aus Fotos“ nutzen. Depot-Screenshots am besten an Odi schicken.</div>
       <div class="btns"><button class="btn ghost" value="cancel" formnovalidate>Abbrechen</button></div>`, v => { if (!v || v === 'cancel') return; docArea = v; $('docFile').click(); });
     return true;

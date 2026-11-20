@@ -15,6 +15,7 @@ function saveChat() { try { localStorage.setItem(CHAT_KEY, JSON.stringify(CHAT.s
 const SYS = `Du bist der persönliche Assistent im „Lebenshub“ (Termine, Routinen, Arbeit, Finanzen, Gesundheit). Antworte auf Deutsch, knapp und freundlich (Du-Form).
 Übernimm alles, was der Nutzer erzählt oder anhängt, sofort in den Hub – ohne Rückfrage, wenn die Zuordnung klar ist:
 - Termine auf Fotos/Screenshots (z. B. Physio-Terminzettel) → je Termin add_entry in Liste t mit date und time (HH:MM), Ort in note.
+- Verträge, Versicherungen, Miete, Nebenkosten, Strom, Kfz, Handy, Abos, Vorsorge (auch aus Screenshots/Policen/Kontoauszügen) → set_contract mit Bereich, Anbieter, Betrag, Rhythmus, Frist/Kündigungsfrist – niemals Vertrags-, Policen-, Kunden- oder IBAN-Nummern. Gehalt/Netto → set_income.
 - Berechnungen, Bewertungen, Businesspläne, Investitionen: zuerst get_knowledge „Methoden-Baukasten: Bewertung, Investition und Businessplan“ und passende Fach-/Projekt-Einträge (z. B. Masterarbeit Batterie, Studium-Profil) lesen, Formeln daraus nutzen, Rechenweg kurz zeigen, Annahmen offenlegen; reale Zahlen aus Finanzen/Wissen bevorzugen.
 - Gehirn: Erkennst du bereichsübergreifende Zusammenhänge (z. B. Uni-Wissen ↔ Depot, Gesundheit ↔ Training, Idee ↔ Startup), speichere sie mit add_insight; nutze vorhandene Erkenntnisse beim Antworten.
 - Neues mit add_entry in die passende Liste; Vorhandenes mit update_entry aktualisieren statt doppelt anlegen (IDs aus den Hub-Daten).
@@ -52,7 +53,7 @@ function tools() {
     { name: 'store_attachment', description: 'Angehängte Dateien dieser Nachricht unter „Dokumente“ ablegen.',
       input_schema: { type: 'object', additionalProperties: false, required: ['area', 'title', 'summary'], properties: {
         area: { type: 'string', enum: ['work', 'money', 'health'] }, title: str('Titel'), summary: str('2–4 Sätze') } } }
-  ].concat(typeof FIN_TOOLS !== 'undefined' ? FIN_TOOLS : [], typeof KNOW_TOOLS !== 'undefined' ? KNOW_TOOLS : [], typeof HEALTH_TOOLS !== 'undefined' ? HEALTH_TOOLS : [], typeof BRAIN_TOOLS !== 'undefined' ? BRAIN_TOOLS : []);
+  ].concat(typeof FIN_TOOLS !== 'undefined' ? FIN_TOOLS : [], typeof KNOW_TOOLS !== 'undefined' ? KNOW_TOOLS : [], typeof HEALTH_TOOLS !== 'undefined' ? HEALTH_TOOLS : [], typeof BRAIN_TOOLS !== 'undefined' ? BRAIN_TOOLS : [], typeof LIFE_TOOLS !== 'undefined' ? LIFE_TOOLS : []);
 }
 
 /* Kompakte Hub-Daten (kurze Schlüssel = weniger Tokens) */
@@ -69,12 +70,13 @@ function hubSnapshot() {
     '\nFinanzen [Konto, Art, Guthaben, Stichtag] / [Konto, Wertpapier, ISIN, Stück, Einstand, Kurs, Kursdatum]: ' + (typeof finSnapshotText === 'function' ? finSnapshotText() : '') +
     '\nWissen [id, Titel, Art, Themen, Status] (Details mit get_knowledge): ' + (typeof knowSnapshotText === 'function' ? knowSnapshotText() : '[]') +
     '\nGesundheit (letzte 7 Tage): ' + (typeof healthSnapshotText === 'function' ? healthSnapshotText() : '{}') +
+    '\nLeben (Netto, Fixkosten/Monat, Verträge [id, Bereich, Name, Anbieter, Betrag, Rhythmus, Status, Frist, Kündigung]): ' + (typeof lifeSnapshotText === 'function' ? lifeSnapshotText() : '{}') +
     '\nKalender nächste 14 Tage inkl. Apple-Kalender: ' + (typeof calSnapshotText === 'function' ? calSnapshotText() : '{}') +
     '\nGehirn (Erkenntnisse, Verknüpfungen, offene Fragen): ' + (typeof brainSnapshotText === 'function' ? brainSnapshotText() : '{}') + '\n</hub>';
 }
 
 function runTool(name, x, turn) {
-  const fr = (typeof finTool === 'function' ? finTool(name, x || {}) : null) || (typeof knowTool === 'function' ? knowTool(name, x || {}) : null) || (typeof healthTool === 'function' ? healthTool(name, x || {}) : null) || (typeof weatherTool === 'function' ? weatherTool(name, x || {}) : null) || (typeof brainTool === 'function' ? brainTool(name, x || {}) : null);
+  const fr = (typeof finTool === 'function' ? finTool(name, x || {}) : null) || (typeof knowTool === 'function' ? knowTool(name, x || {}) : null) || (typeof healthTool === 'function' ? healthTool(name, x || {}) : null) || (typeof weatherTool === 'function' ? weatherTool(name, x || {}) : null) || (typeof brainTool === 'function' ? brainTool(name, x || {}) : null) || (typeof lifeTool === 'function' ? lifeTool(name, x || {}) : null);
   if (fr) return fr;
   const L = k => { if (!S.lists[k]) throw new Error('Unbekannte Liste ' + k); return S.lists[k]; };
   const stIdx = (k, s) => { const c = C.find(y => y.k === k); if (!c.st || !s) return 0; const i = c.st.findIndex(v => v.toLowerCase() === String(s).toLowerCase()); return i < 0 ? 0 : i; };
@@ -240,7 +242,7 @@ const ABO_FORMAT = `Antworte zuerst ganz normal. Wenn etwas in den Lebenshub sol
 \`\`\`lebenshub
 {"actions":[{"tool":"add_entry","list":"x","title":"…","note":"…","date":"JJJJ-MM-TT","status":"…"}]}
 \`\`\`
-Werkzeuge: add_entry(list,title,note?,date?,time? HH:MM,status?), update_entry(list,id,title?,note?,date?,status?), delete_entry(list,id), add_routine(title,freq=daily|weekly|monthly,every?,weekday 0=So..6=Sa?,monthday?,time HH:MM?, note?), complete_routine(id), delete_routine(id), set_account(name, kind=Depot|Girokonto|Tagesgeld|Verrechnungskonto, broker?, cash? in EUR, asOf?), set_position(account, name, isin?, qty?, buyPrice?, price? in EUR, priceDate?), set_prices(prices:[{name|isin, price in EUR, date}]), remove_position(account, name), set_health_day(date?, sleep?, hrv?, rhr?, steps?, active?, stress?, spo2?, weight?, mood? 1–5, energy? 1–5, sore? 1–5, note?, source?), add_meal(description, kcal, protein?, carbs?, fat?, date?, time?), add_knowledge(title, kind=Paper|Artikel|Notiz|Video|Buch|Studie|Patent|Idee, url?, source?, summary?, points?[], tags?[], status=Zu lesen|Gelesen|Verarbeitet), add_insight(text, refs?[]), link_items(a, b, why?).
+Werkzeuge: add_entry(list,title,note?,date?,time? HH:MM,status?), update_entry(list,id,title?,note?,date?,status?), delete_entry(list,id), add_routine(title,freq=daily|weekly|monthly,every?,weekday 0=So..6=Sa?,monthday?,time HH:MM?, note?), complete_routine(id), delete_routine(id), set_account(name, kind=Depot|Girokonto|Tagesgeld|Verrechnungskonto, broker?, cash? in EUR, asOf?), set_position(account, name, isin?, qty?, buyPrice?, price? in EUR, priceDate?), set_prices(prices:[{name|isin, price in EUR, date}]), remove_position(account, name), set_health_day(date?, sleep?, hrv?, rhr?, steps?, active?, stress?, spo2?, weight?, mood? 1–5, energy? 1–5, sore? 1–5, note?, source?), add_meal(description, kcal, protein?, carbs?, fat?, date?, time?), add_knowledge(title, kind=Paper|Artikel|Notiz|Video|Buch|Studie|Patent|Idee, url?, source?, summary?, points?[], tags?[], status=Zu lesen|Gelesen|Verarbeitet), add_insight(text, refs?[]), link_items(a, b, why?), set_contract(name, cat=wohnen|mobil|vers|vorsorge|vertrag, provider?, cost?, per=monat|quartal|halbjahr|jahr|einmalig, status=aktiv|Angebot|prüfen|fehlt|gekündigt, next?, notice?, note?), set_income(net).
 Listen: ${'${LISTEN}'}
 Regeln: nichts erfinden, Datum JJJJ-MM-TT, keine IBAN/Konto-/Kunden-/Versicherungsnummern, vorhandene Einträge per update_entry mit ihrer id ändern statt doppelt anlegen.`;
 function aboFormat() { return ABO_FORMAT.replace('${LISTEN}', C.map(c => c.k + '=' + c.title + (c.st ? ' (Status: ' + c.st.join('/') + ')' : '')).join(', ')); }
