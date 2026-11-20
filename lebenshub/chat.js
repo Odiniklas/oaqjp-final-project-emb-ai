@@ -463,7 +463,7 @@ function odiCard() {
     <div class="btns" style="margin-top:0"><button class="btn" data-act="odiPreset" data-v="butler">Butler-Klang</button><button class="btn ghost" data-act="odiPreset" data-v="normal">Normal</button><button class="btn ghost" data-act="odiTest">▶︎ Probe hören</button></div>
     <div class="hint">Aktive Stimme: <b>${esc(cur)}</b></div>
     <label class="f">Stimme${vs.length ? '' : ' <small>(Liste noch leer)</small>'}<select id="odiVoice"><option value="">Automatisch (männlich, deutsch)</option>${vs.map(v => `<option ${o.voice === v.name ? 'selected' : ''} value="${esc(v.name)}">${esc(v.name)} (${esc(v.lang)})</option>`).join('')}</select></label>
-    ${vs.length ? '' : `<div class="hint">Diese Ansicht zeigt (noch) keine Stimmenliste. <button class="chip" data-act="odiVoices">Stimmen neu laden</button><br>Dann nutzt Odi die <b>Standardstimme</b> deines iPhones: Einstellungen → Bedienungshilfen → Gesprochene Inhalte → Stimmen → Deutsch → <b>Markus</b> oder <b>Yannick</b> antippen, sodass ein Häkchen dahinter steht.</div>`}
+    ${vs.length ? '' : `<div class="hint">Diese Ansicht zeigt (noch) keine Stimmenliste. <button class="chip" data-act="odiVoices">Stimmen neu laden</button><br>Die Claude-App gibt Webseiten oft keine Stimmenliste – dann spricht Odi mit der deutschen Systemstimme (Butler-Klang über Tempo/Tonhöhe wirkt trotzdem).<br><b>Stimme frei wählen:</b> Lebenshub in <b>Safari</b> öffnen (Link in die Adresszeile einfügen, nicht antippen), dort ⚙︎ → Stimme wählen. Im Kurzbefehl „Odi“ statt „URL öffnen“ die Aktion <b>„Webseite in Safari öffnen“</b> bzw. Safari-Aktion „URL öffnen“ nehmen.</div>`}
     <div class="f2"><label class="f">Tempo <b id="odiRateV">${(+o.rate).toFixed(2)}</b><input type="range" id="odiRate" min="0.7" max="1.4" step="0.05" value="${o.rate}"></label><label class="f">Tonhöhe <b id="odiPitchV">${(+o.pitch).toFixed(2)}</b><input type="range" id="odiPitch" min="0.5" max="1.5" step="0.05" value="${o.pitch}"></label></div>
     <div class="f2"><label class="f">Name<input type="text" id="odiName" value="${esc(o.name)}"></label>
     <label class="f">Persönlichkeit<select id="odiOn"><option value="1" ${o.on ? 'selected' : ''}>KI-Butler (souverän, trockener Humor)</option><option value="0" ${o.on ? '' : 'selected'}>Neutral</option></select></label></div>
@@ -484,7 +484,10 @@ document.addEventListener('change', e => {
 });
 function odiAct(act, b) {
   if (act === 'odiPreset') { const o = odi(); if (b.dataset.v === 'butler') { o.rate = 0.95; o.pitch = 0.85; o.sir = true; o.on = true; } else { o.rate = 1; o.pitch = 1; } unlockTts(); save('Stimme eingestellt'); odiAct('odiTest'); return true; }
-  if (act === 'odiVoices') { try { speechSynthesis.getVoices(); unlockTts(); } catch (e) { /* egal */ } setTimeout(() => { pickVoice(); render(); toast(deVoices().length ? deVoices().length + ' Stimmen gefunden' : 'Keine Stimmenliste – Odi nutzt die iPhone-Standardstimme.'); }, 600); return true; }
+  if (act === 'odiVoices') {
+    try { unlockTts(); const u = new SpeechSynthesisUtterance('Stimmen werden geladen.'); u.lang = 'de-DE'; speechSynthesis.speak(u); } catch (e) { /* egal */ }
+    let n = 0; const tick = () => { n++; if (deVoices().length || n > 12) { pickVoice(); render(); toast(deVoices().length ? deVoices().length + ' Stimmen gefunden' : 'Hier gibt es keine Stimmenliste – siehe Hinweis (Safari).'); } else setTimeout(tick, 300); }; setTimeout(tick, 300);
+    return true; }
   if (act === 'odiTest') { unlockTts(); speak((odi().sir ? 'Guten Tag, Sir. ' : 'Hallo. ') + 'Hier ist ' + odi().name + '. Alle Systeme laufen. Womit kann ich helfen?'); return true; }
   return false;
 }
