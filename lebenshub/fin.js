@@ -92,6 +92,13 @@ function finTool(name, x) {
     finSnapshot(d || H.today());
     return { label: '💹 Kurse aktualisiert: ' + n + ' Position(en), Vermögen ' + eur(finTotals().total, 0), result: n + ' aktualisiert' };
   }
+  if (name === 'set_series') {
+    const a = findAcc(x.account); if (!a) throw new Error('Konto nicht gefunden');
+    const pts = (Array.isArray(x.points) ? x.points : []).map(q => Array.isArray(q) ? q : [q.d || q.date, q.v != null ? q.v : q.value]).filter(q => /^\d{4}-\d{2}-\d{2}$/.test(q[0] || '') && num(q[1]) != null).map(q => [q[0], num(q[1])]).sort((m, n) => m[0].localeCompare(n[0]));
+    if (pts.length < 2) throw new Error('Zu wenige Punkte');
+    F.series = F.series || {}; F.series[a.id] = { kind: x.kind === 'pct' ? 'pct' : 'value', pts, src: String(x.source || ''), at: H.today() };
+    return { label: '📉 Verlauf ' + a.name + ': ' + pts.length + ' Punkte ab ' + H.fdy(pts[0][0]), result: 'gespeichert' };
+  }
   if (name === 'set_saving_plan') {
     const a = findAcc(x.account); if (!a) throw new Error('Konto nicht gefunden');
     const q = String(x.name || '').toLowerCase().trim();
@@ -127,20 +134,21 @@ function finSnapshotText() {
 
 /* ---------- Ansicht (im Stil einer Broker-App) ---------- */
 let finRange = 'max';
-const FIN_RANGES = [['1m', '1M', 31], ['6m', '6M', 183], ['1j', '1J', 366], ['max', 'Max', 1e5]];
+const FIN_RANGES = [['1m', '1M', 31], ['6m', '6M', 183], ['1j', '1J', 366], ['3j', '3J', 1096], ['max', 'Max', 1e5]];
 const FIN_COLORS = ['#0e7c66', '#2f8fdd', '#7c5cff', '#e67e22', '#e0457b', '#16a085', '#c0392b', '#8a8f98'];
-function finChart(pts, cost, label) {
+function finChart(pts, cost, label, isPct) {
+  const hasBase = cost != null && (cost || isPct);
   pts = pts.filter(p => p.v != null);
   if (pts.length < 2) return `<div class="fin-empty-chart"><svg viewBox="0 0 600 70" preserveAspectRatio="none" class="chart flat"><path d="M6 50 L594 50" class="ln"/></svg><div class="hint">Der Verlauf startet mit diesem Stand und wächst mit jedem Kurs-Update (jeden Samstag automatisch).</div></div>`;
-  const W = 600, Hh = 150, pad = 6, ys = pts.map(p => p.v).concat(cost ? [cost] : []), mn = Math.min(...ys), mx = Math.max(...ys), rng = mx - mn || 1;
+  const W = 600, Hh = 150, pad = 6, ys = pts.map(p => p.v).concat(hasBase ? [cost] : []), mn = Math.min(...ys), mx = Math.max(...ys), rng = mx - mn || 1;
   const t0 = H.P(pts[0].d).getTime(), t1 = H.P(pts[pts.length - 1].d).getTime() || t0 + 1;
   const X = d => pad + (W - 2 * pad) * ((H.P(d).getTime() - t0) / ((t1 - t0) || 1)), Y = v => pad + (Hh - 2 * pad) * (1 - (v - mn) / rng);
   const line = pts.map((p, i) => (i ? 'L' : 'M') + X(p.d).toFixed(1) + ' ' + Y(p.v).toFixed(1)).join(' ');
-  const last = pts[pts.length - 1], up = last.v >= (cost || pts[0].v);
+  const last = pts[pts.length - 1], up = last.v >= (isPct ? 0 : cost || pts[0].v);
   return `<svg class="chart ${up ? 'up' : 'down'}" viewBox="0 0 ${W} ${Hh}" preserveAspectRatio="none" role="img" aria-label="${esc(label || 'Verlauf')}">
-    <path class="area" d="${line} L ${X(last.d).toFixed(1)} ${Hh} L ${X(pts[0].d).toFixed(1)} ${Hh} Z"/>${cost ? `<path class="cost" d="M ${pad} ${Y(cost).toFixed(1)} L ${W - pad} ${Y(cost).toFixed(1)}"/>` : ''}<path class="ln" d="${line}"/>
+    <path class="area" d="${line} L ${X(last.d).toFixed(1)} ${Hh} L ${X(pts[0].d).toFixed(1)} ${Hh} Z"/>${hasBase ? `<path class="cost" d="M ${pad} ${Y(cost).toFixed(1)} L ${W - pad} ${Y(cost).toFixed(1)}"/>` : ''}<path class="ln" d="${line}"/>
     <circle cx="${X(last.d).toFixed(1)}" cy="${Y(last.v).toFixed(1)}" r="4"/></svg>
-    <div class="axis"><span>${H.fdy(pts[0].d)}</span><span>${cost ? 'gestrichelt: Einstand' : eur(mn, 0) + ' – ' + eur(mx, 0)}</span><span>${H.fdy(last.d)}</span></div>`;
+    <div class="axis"><span>${H.fdy(pts[0].d)}</span><span>${isPct ? pct(mn) + ' … ' + pct(mx) + ' · gestrichelt: 0 %' : cost ? 'gestrichelt: Einstand' : eur(mn, 0) + ' – ' + eur(mx, 0)}</span><span>${H.fdy(last.d)}</span></div>`;
 }
 function finRangeOf(pts) { const days = (FIN_RANGES.find(r => r[0] === finRange) || FIN_RANGES[3])[2], from = H.add(H.today(), -days); return pts.filter(p => p.d >= from); }
 function finRangeChips() { return `<div class="fin-range">${FIN_RANGES.map(r => `<button class="chip ${finRange === r[0] ? '' : 'd'}" data-act="frange" data-v="${r[0]}">${r[1]}</button>`).join('')}</div>`; }
@@ -168,7 +176,10 @@ function finView() {
     out += `<section class="card fin-accc"><h2><button class="t" data-act="facc" data-id="${a.id}">${esc(a.name)}<small>${esc([a.kind, a.broker].filter(Boolean).join(' · '))}${a.asOf ? ' · Stand ' + H.fdy(a.asOf) : ''}</small></button></h2>
       <div class="fin-total sm">${ps.length || a.cash != null ? eur(v.total) : '–'}</div>${!ps.length && a.cash == null ? '<div class="hint">Kontostand fehlt – antippen und eintragen oder Screenshot an Odi schicken.</div>' : ''}
       <div class="fin-pills">${plChip(pl.abs, pl.cost, 'seit Kauf')}${ap && al ? plChip(al.v - ap.v, ap.v, 'seit ' + H.fdy(ap.d)) : ''}</div>
-      ${ps.length ? finChart(finRangeOf(ah), ah.length > 1 ? null : null, a.name) : ''}
+      ${(() => { const se = F.series && F.series[a.id];
+        if (se && se.kind === 'pct') return `<div class="fin-label sm">Rendite seit Start (zeitgewichtet)</div>${finChart(finRangeOf(se.pts.map(q => ({ d: q[0], v: q[1] }))), 0, a.name, true)}${finRangeChips()}<div class="hint">Verlauf aus ${esc(se.src || 'Screenshot')} · Stand ${H.fdy(se.pts[se.pts.length - 1][0])}</div>`;
+        if (se) { const sp = se.pts.map(q => ({ d: q[0], v: q[1] })), lastD = sp[sp.length - 1].d; return `${finChart(finRangeOf(sp.concat(ah.filter(q => q.d > lastD))), null, a.name)}${finRangeChips()}<div class="hint">Verlauf bis ${H.fdy(lastD)} aus ${esc(se.src || 'Screenshot')}, danach wöchentliche Kurs-Updates</div>`; }
+        return ps.length ? finChart(finRangeOf(ah), null, a.name) : ''; })()}
       ${ps.length > 1 ? `<div class="fin-alloc">${ps.map((p, i) => `<i style="width:${((posValue(p) || 0) / tot * 100).toFixed(1)}%;background:${FIN_COLORS[i % FIN_COLORS.length]}" title="${esc(p.name)}"></i>`).join('')}</div>` : ''}
       ${ps.map((p, i) => { const q = posPL(p), val = posValue(p); return `<div class="row fin-pos"><span class="fin-dot" style="background:${FIN_COLORS[i % FIN_COLORS.length]}"></span><button class="t" data-act="fpos" data-id="${p.id}">${esc(p.name)}<small>${[p.qty != null ? p.qty.toLocaleString('de-DE') + ' Stk.' : '', p.price != null ? 'Kurs ' + eur(p.price) : '', p.buy != null ? 'Kauf ' + eur(p.buy) : '', p.wkn ? 'WKN ' + p.wkn : p.isin || '', val != null ? Math.round(val / tot * 100) + ' %' : ''].filter(Boolean).join(' · ')}</small></button><span class="fin-v">${eur(val)}${q ? `<small class="${q.rel >= 0 ? 'pos' : 'neg'}">${q.rel >= 0 ? '▲' : '▼'} ${pct(q.rel).replace(/^[+-]/, '')} · ${q.abs >= 0 ? '+' : '−'}${eur(Math.abs(q.abs), 0)}</small>` : ''}</span></div>`; }).join('')}
       ${aplans.length ? `<div class="fin-plans"><div class="kv"><span>Sparpläne${nextPlan ? ' · nächste Ausführung ' + H.fd(nextPlan) : ''}</span><b>${eur(asum, 0)} / Monat</b></div>${aplans.map(x => `<div class="kv sub"><span>${esc(x.name)}</span><span>${eur(x.amount, 0)}</span></div>`).join('')}</div>` : ''}
