@@ -4,15 +4,16 @@
 'use strict';
 const ACC_KINDS = ['Depot', 'Girokonto', 'Tagesgeld', 'Verrechnungskonto'];
 function fin() {
-  if (!S.fin) S.fin = { accounts: [], positions: [], history: [] };
-  ['accounts', 'positions', 'history'].forEach(k => { if (!Array.isArray(S.fin[k])) S.fin[k] = []; });
+  if (!S.fin) S.fin = { accounts: [], positions: [], history: [], plans: [] };
+  ['accounts', 'positions', 'history', 'plans'].forEach(k => { if (!Array.isArray(S.fin[k])) S.fin[k] = []; });
   return S.fin;
 }
 const num = v => { const n = typeof v === 'number' ? v : parseFloat(String(v == null ? '' : v).replace(/\s|€/g, '').replace(/\.(?=\d{3}(\D|$))/g, '').replace(',', '.')); return isFinite(n) ? n : null; };
 const eur = (v, d) => v == null ? '–' : v.toLocaleString('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: d == null ? 2 : d });
 const pct = v => v == null || !isFinite(v) ? '' : (v > 0 ? '+' : '') + v.toLocaleString('de-DE', { maximumFractionDigits: 1, minimumFractionDigits: 1 }) + ' %';
-function posValue(p) { return p.qty != null && p.price != null ? p.qty * p.price : null; }
-function posPL(p) { const v = posValue(p); return v != null && p.buy != null && p.qty ? { abs: v - p.qty * p.buy, rel: (p.price / p.buy - 1) * 100 } : null; }
+function posValue(p) { return p.qty != null && p.price != null ? p.qty * p.price : (p.value != null ? p.value : null); }
+function posCost(p) { return p.qty != null && p.buy != null ? p.qty * p.buy : (p.cost != null ? p.cost : null); }
+function posPL(p) { const v = posValue(p), c = posCost(p); return v != null && c ? { abs: v - c, rel: (v / c - 1) * 100 } : null; }
 function accValue(a) {
   const ps = fin().positions.filter(p => p.acc === a.id);
   const dep = ps.reduce((s, p) => s + (posValue(p) || 0), 0);
@@ -28,7 +29,7 @@ function finTotals() {
 function finSnapshot(d) {
   const F = fin(), t = finTotals(), day = /^\d{4}-\d{2}-\d{2}$/.test(d || '') ? d : H.today();
   if (!F.accounts.length) return;
-  F.history = F.history.filter(h => h.d !== day).concat([{ d: day, total: Math.round(t.total * 100) / 100, depot: Math.round(t.depot * 100) / 100, cash: Math.round(t.cash * 100) / 100, acc: t.acc }])
+  F.history = F.history.filter(h => h.d !== day && !(h.total === 0 && t.total > 0)).concat([{ d: day, total: Math.round(t.total * 100) / 100, depot: Math.round(t.depot * 100) / 100, cash: Math.round(t.cash * 100) / 100, acc: t.acc }])
     .sort((a, b) => a.d.localeCompare(b.d)).slice(-260);
 }
 function findAcc(name) {
@@ -61,7 +62,11 @@ function finTool(name, x) {
     if (x.name) p.name = String(x.name).trim();
     if (x.isin) p.isin = String(x.isin).toUpperCase();
     ['qty', 'buy', 'price'].forEach(k => { const src = k === 'buy' ? x.buyPrice : x[k]; if (src != null && num(src) != null) p[k] = num(src); });
-    if (x.price != null) p.date = date(x.priceDate || x.date);
+    if (x.wkn) p.wkn = String(x.wkn).toUpperCase();
+    if (x.value != null && num(x.value) != null && (p.qty == null || p.price == null)) p.value = num(x.value);
+    if (x.cost != null && num(x.cost) != null) p.cost = num(x.cost);
+    else if (x.returnPct != null && num(x.returnPct) != null && posValue(p) != null && (p.qty == null || p.buy == null)) p.cost = Math.round(posValue(p) / (1 + num(x.returnPct) / 100) * 100) / 100;
+    if (x.price != null || x.value != null) p.date = date(x.priceDate || x.date);
     finSnapshot(x.priceDate || x.date);
     return { label: '📈 ' + p.name + ' (' + a.name + ')' + (posValue(p) != null ? ': ' + eur(posValue(p)) : ''), result: 'Position gespeichert, id=' + p.id };
   }
@@ -75,64 +80,99 @@ function finTool(name, x) {
     const list = Array.isArray(x.prices) ? x.prices : [];
     let n = 0, d = '';
     list.forEach(e => {
-      const pr = num(e.price); if (pr == null) return;
-      fin().positions.filter(p => p.id === e.id || (e.isin && p.isin && p.isin.toUpperCase() === String(e.isin).toUpperCase()) || (e.name && p.name.toLowerCase() === String(e.name).toLowerCase()))
-        .forEach(p => { p.price = pr; p.date = date(e.date); d = p.date > d ? p.date : d; n++; });
+      const pr = num(e.price), val = num(e.value), chg = num(e.changePct); if (pr == null && val == null && chg == null) return;
+      fin().positions.filter(p => p.id === e.id || (e.isin && p.isin && p.isin.toUpperCase() === String(e.isin).toUpperCase()) || (e.wkn && p.wkn && p.wkn === String(e.wkn).toUpperCase()) || (e.name && p.name.toLowerCase() === String(e.name).toLowerCase()))
+        .forEach(p => {
+          if (pr != null && p.qty != null) p.price = pr;
+          else if (val != null) p.value = val;
+          else if (chg != null) { if (p.qty != null && p.price != null) p.price = Math.round(p.price * (1 + chg / 100) * 100) / 100; else if (p.value != null) p.value = Math.round(p.value * (1 + chg / 100) * 100) / 100; }
+          else return;
+          p.date = date(e.date); d = p.date > d ? p.date : d; n++; });
     });
     finSnapshot(d || H.today());
     return { label: '💹 Kurse aktualisiert: ' + n + ' Position(en), Vermögen ' + eur(finTotals().total, 0), result: n + ' aktualisiert' };
   }
+  if (name === 'set_saving_plan') {
+    const a = findAcc(x.account); if (!a) throw new Error('Konto nicht gefunden');
+    const q = String(x.name || '').toLowerCase().trim();
+    let pl = F.plans.find(y => y.acc === a.id && y.name.toLowerCase() === q);
+    if (x.remove) { F.plans = F.plans.filter(y => y !== pl); return { label: '− Sparplan ' + (x.name || ''), result: 'entfernt' }; }
+    if (!pl) { pl = { id: uid(), acc: a.id, name: String(x.name || 'Sparplan').trim(), amount: 0, every: 'monatlich', next: '' }; F.plans.push(pl); }
+    if (num(x.amount) != null) pl.amount = num(x.amount);
+    if (x.every) pl.every = String(x.every);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(x.next || '')) pl.next = x.next;
+    return { label: '🔁 Sparplan ' + pl.name + ': ' + eur(pl.amount, 0) + ' ' + pl.every, result: 'gespeichert' };
+  }
   return null;
 }
 const FIN_TOOLS = [
+  { name: 'set_saving_plan', description: 'Sparplan anlegen/ändern (Betrag in EUR, Rhythmus, nächste Ausführung) oder mit remove=true entfernen.',
+    input_schema: { type: 'object', additionalProperties: false, required: ['account', 'name'], properties: { account: { type: 'string' }, name: { type: 'string' }, amount: { type: 'number' }, every: { type: 'string' }, next: { type: 'string', description: 'JJJJ-MM-TT' }, remove: { type: 'boolean' } } } },
   { name: 'set_account', description: 'Konto oder Depot anlegen/ändern (z. B. Trade Republic Depot, comdirect Girokonto). cash = Kontostand bzw. Depot-Guthaben in EUR, asOf = Stichtag.',
     input_schema: { type: 'object', additionalProperties: false, required: ['name'], properties: { name: { type: 'string' }, broker: { type: 'string' }, kind: { type: 'string', enum: ACC_KINDS }, cash: { type: 'number' }, asOf: { type: 'string', description: 'JJJJ-MM-TT' } } } },
-  { name: 'set_position', description: 'Wertpapier-Position in einem Depot anlegen/ändern: Stückzahl, Einstandskurs (buyPrice), aktueller Kurs (price) in EUR.',
-    input_schema: { type: 'object', additionalProperties: false, required: ['account', 'name'], properties: { account: { type: 'string', description: 'Name des Depots' }, name: { type: 'string' }, isin: { type: 'string' }, qty: { type: 'number' }, buyPrice: { type: 'number' }, price: { type: 'number' }, priceDate: { type: 'string', description: 'JJJJ-MM-TT' } } } },
+  { name: 'set_position', description: 'Wertpapier-Position in einem Depot anlegen/ändern: Stückzahl, Einstandskurs (buyPrice), aktueller Kurs (price) in EUR. Ohne Stückzahl (z. B. Trade-Republic-Übersicht): value = aktueller Positionswert, returnPct = Rendite seit Kauf in % (oder cost = Einstand gesamt).',
+    input_schema: { type: 'object', additionalProperties: false, required: ['account', 'name'], properties: { account: { type: 'string', description: 'Name des Depots' }, name: { type: 'string' }, isin: { type: 'string' }, wkn: { type: 'string' }, qty: { type: 'number' }, buyPrice: { type: 'number' }, price: { type: 'number' }, value: { type: 'number' }, cost: { type: 'number' }, returnPct: { type: 'number' }, priceDate: { type: 'string', description: 'JJJJ-MM-TT' } } } },
   { name: 'remove_position', description: 'Position aus einem Depot entfernen (nur auf ausdrücklichen Wunsch oder bei Verkauf).',
     input_schema: { type: 'object', additionalProperties: false, required: ['account', 'name'], properties: { account: { type: 'string' }, name: { type: 'string' } } } },
-  { name: 'set_prices', description: 'Aktuelle Kurse (EUR) für Positionen eintragen; speichert automatisch einen Depotstand für den Verlauf.',
-    input_schema: { type: 'object', additionalProperties: false, required: ['prices'], properties: { prices: { type: 'array', items: { type: 'object', properties: { name: { type: 'string' }, isin: { type: 'string' }, price: { type: 'number' }, date: { type: 'string' } }, required: ['price'] } } } } }
+  { name: 'set_prices', description: 'Kurse aktualisieren; speichert automatisch einen Depotstand für den Verlauf. Je Position price (EUR je Stück, wenn Stückzahl bekannt) ODER value (Positionswert) ODER changePct (Veränderung in % seit letztem Stand).',
+    input_schema: { type: 'object', additionalProperties: false, required: ['prices'], properties: { prices: { type: 'array', items: { type: 'object', properties: { name: { type: 'string' }, isin: { type: 'string' }, wkn: { type: 'string' }, price: { type: 'number' }, value: { type: 'number' }, changePct: { type: 'number' }, date: { type: 'string' } } } } } } }
 ];
 function finSnapshotText() {
   const F = fin();
   if (!F.accounts.length) return 'keine Konten erfasst';
-  return JSON.stringify({ konten: F.accounts.map(a => [a.name, a.kind, a.cash, a.asOf]), positionen: F.positions.map(p => [(findAcc(p.acc) || {}).name, p.name, p.isin, p.qty, p.buy, p.price, p.date]),
+  return JSON.stringify({ konten: F.accounts.map(a => [a.name, a.kind, a.cash, a.asOf]), positionen: F.positions.map(p => [(findAcc(p.acc) || {}).name, p.name, p.isin || p.wkn || '', p.qty, p.buy, p.price, p.date, posValue(p) != null ? Math.round(posValue(p)) : null, posPL(p) ? Math.round(posPL(p).rel * 10) / 10 + '%' : '']),
+    sparplaene: F.plans.map(x => [(findAcc(x.acc) || {}).name, x.name, x.amount, x.every, x.next]),
     gesamt: Math.round(finTotals().total), verlauf: F.history.slice(-6).map(h => [h.d, Math.round(h.total)]) });
 }
 
-/* ---------- Ansicht ---------- */
-function finChart(hist) {
-  const pts = hist.filter(h => h.total != null);
-  if (pts.length < 2) return '<div class="hint">Der Verlauf erscheint, sobald mindestens zwei Stände gespeichert sind (z. B. nach dem wöchentlichen Kurs-Update).</div>';
-  const W = 600, Hh = 150, pad = 6, ys = pts.map(p => p.total), mn = Math.min(...ys), mx = Math.max(...ys), rng = mx - mn || 1;
+/* ---------- Ansicht (im Stil einer Broker-App) ---------- */
+let finRange = 'max';
+const FIN_RANGES = [['1m', '1M', 31], ['6m', '6M', 183], ['1j', '1J', 366], ['max', 'Max', 1e5]];
+const FIN_COLORS = ['#0e7c66', '#2f8fdd', '#7c5cff', '#e67e22', '#e0457b', '#16a085', '#c0392b', '#8a8f98'];
+function finChart(pts, cost, label) {
+  pts = pts.filter(p => p.v != null);
+  if (pts.length < 2) return `<div class="fin-empty-chart"><svg viewBox="0 0 600 70" preserveAspectRatio="none" class="chart flat"><path d="M6 50 L594 50" class="ln"/></svg><div class="hint">Der Verlauf startet mit diesem Stand und wächst mit jedem Kurs-Update (jeden Samstag automatisch).</div></div>`;
+  const W = 600, Hh = 150, pad = 6, ys = pts.map(p => p.v).concat(cost ? [cost] : []), mn = Math.min(...ys), mx = Math.max(...ys), rng = mx - mn || 1;
   const t0 = H.P(pts[0].d).getTime(), t1 = H.P(pts[pts.length - 1].d).getTime() || t0 + 1;
   const X = d => pad + (W - 2 * pad) * ((H.P(d).getTime() - t0) / ((t1 - t0) || 1)), Y = v => pad + (Hh - 2 * pad) * (1 - (v - mn) / rng);
-  const line = pts.map((p, i) => (i ? 'L' : 'M') + X(p.d).toFixed(1) + ' ' + Y(p.total).toFixed(1)).join(' ');
-  const last = pts[pts.length - 1], up = last.total >= pts[0].total;
-  return `<svg class="chart ${up ? 'up' : 'down'}" viewBox="0 0 ${W} ${Hh}" preserveAspectRatio="none" role="img" aria-label="Vermögensverlauf">
-    <path class="area" d="${line} L ${X(last.d).toFixed(1)} ${Hh} L ${X(pts[0].d).toFixed(1)} ${Hh} Z"/><path class="ln" d="${line}"/>
-    <circle cx="${X(last.d).toFixed(1)}" cy="${Y(last.total).toFixed(1)}" r="4"/></svg>
-    <div class="axis"><span>${H.fdy(pts[0].d)}</span><span>${eur(mn, 0)} – ${eur(mx, 0)}</span><span>${H.fdy(last.d)}</span></div>`;
+  const line = pts.map((p, i) => (i ? 'L' : 'M') + X(p.d).toFixed(1) + ' ' + Y(p.v).toFixed(1)).join(' ');
+  const last = pts[pts.length - 1], up = last.v >= (cost || pts[0].v);
+  return `<svg class="chart ${up ? 'up' : 'down'}" viewBox="0 0 ${W} ${Hh}" preserveAspectRatio="none" role="img" aria-label="${esc(label || 'Verlauf')}">
+    <path class="area" d="${line} L ${X(last.d).toFixed(1)} ${Hh} L ${X(pts[0].d).toFixed(1)} ${Hh} Z"/>${cost ? `<path class="cost" d="M ${pad} ${Y(cost).toFixed(1)} L ${W - pad} ${Y(cost).toFixed(1)}"/>` : ''}<path class="ln" d="${line}"/>
+    <circle cx="${X(last.d).toFixed(1)}" cy="${Y(last.v).toFixed(1)}" r="4"/></svg>
+    <div class="axis"><span>${H.fdy(pts[0].d)}</span><span>${cost ? 'gestrichelt: Einstand' : eur(mn, 0) + ' – ' + eur(mx, 0)}</span><span>${H.fdy(last.d)}</span></div>`;
 }
+function finRangeOf(pts) { const days = (FIN_RANGES.find(r => r[0] === finRange) || FIN_RANGES[3])[2], from = H.add(H.today(), -days); return pts.filter(p => p.d >= from); }
+function finRangeChips() { return `<div class="fin-range">${FIN_RANGES.map(r => `<button class="chip ${finRange === r[0] ? '' : 'd'}" data-act="frange" data-v="${r[0]}">${r[1]}</button>`).join('')}</div>`; }
+function finPL(ps) { return ps.reduce((s, p) => { const q = posPL(p); return q ? { abs: s.abs + q.abs, cost: s.cost + posCost(p) } : s; }, { abs: 0, cost: 0 }); }
+function plChip(abs, base, label) { if (!base) return ''; const up = abs >= 0; return `<span class="fin-pill ${up ? 'pos' : 'neg'}"><b>${up ? '▲' : '▼'} ${pct(abs / base * 100).replace(/^[+-]/, '')}</b><small>${up ? '+' : '−'}${eur(Math.abs(abs))} · ${label}</small></span>`; }
 function finView() {
-  const F = fin(), t = finTotals(), h = F.history;
+  const F = fin(), t = finTotals(), h = F.history, allPL = finPL(F.positions);
+  const pts = finRangeOf(h.map(x => ({ d: x.d, v: x.total })));
   const prev = h.length > 1 ? h[h.length - 2] : null, last = h[h.length - 1];
-  const delta = prev && last ? last.total - prev.total : null;
+  const plans = F.plans.reduce((s2, x) => s2 + (x.amount || 0), 0);
   let out = `<section class="card wide fin-hero"><div class="fin-label">Gesamtvermögen</div>
     <div class="fin-total">${F.accounts.length ? eur(t.total) : '–'}</div>
-    ${delta != null ? `<div class="fin-delta ${delta >= 0 ? 'pos' : 'neg'}">${delta >= 0 ? '▲' : '▼'} ${eur(Math.abs(delta))} (${pct(prev.total ? delta / prev.total * 100 : null)}) seit ${H.fdy(prev.d)}</div>` : ''}
-    ${finChart(h)}
-    <div class="fin-split"><span>Wertpapiere <b>${eur(t.depot, 0)}</b></span><span>Guthaben <b>${eur(t.cash, 0)}</b></span></div>
+    <div class="fin-pills">${plChip(allPL.abs, allPL.cost, 'seit Kauf')}${prev && last ? plChip(last.total - prev.total, prev.total, 'seit ' + H.fdy(prev.d)) : ''}</div>
+    ${finChart(pts, null, 'Vermögensverlauf')}${h.length > 2 ? finRangeChips() : ''}
+    <div class="fin-split"><span>Wertpapiere <b>${eur(t.depot, 0)}</b></span><span>Guthaben <b>${eur(t.cash, 0)}</b></span>${allPL.cost ? `<span>Investiert <b>${eur(allPL.cost, 0)}</b></span>` : ''}${plans ? `<span>Sparpläne <b>${eur(plans, 0)}/Monat</b></span>` : ''}</div>
     ${!F.accounts.length ? '<div class="hint">Noch keine Konten. Leg Trade Republic und comdirect an – oder schick dem Assistenten Screenshots deiner Depot- und Kontoübersicht, er trägt alles ein.</div>' : ''}
     <div class="btns"><button class="btn ghost" data-act="facc">+ Konto / Depot</button>${F.accounts.length ? '<button class="btn ghost" data-act="fsnap">Stand speichern</button>' : ''}</div></section>`;
   F.accounts.forEach(a => {
-    const v = accValue(a), ps = F.positions.filter(p => p.acc === a.id).sort((x, y) => (posValue(y) || 0) - (posValue(x) || 0));
-    const pl = ps.reduce((s, p) => { const q = posPL(p); return q ? { abs: s.abs + q.abs, cost: s.cost + p.qty * p.buy } : s; }, { abs: 0, cost: 0 });
-    out += `<section class="card"><h2><button class="t" data-act="facc" data-id="${a.id}">${esc(a.name)}<small>${esc([a.kind, a.broker].filter(Boolean).join(' · '))}</small></button><span class="fin-acc">${eur(v.total)}</span></h2>
-      ${pl.cost ? `<div class="fin-delta ${pl.abs >= 0 ? 'pos' : 'neg'}">${pl.abs >= 0 ? '+' : '−'}${eur(Math.abs(pl.abs))} (${pct(pl.abs / pl.cost * 100)}) seit Kauf</div>` : ''}
-      ${ps.map(p => { const q = posPL(p); return `<div class="row"><button class="t" data-act="fpos" data-id="${p.id}">${esc(p.name)}<small>${p.qty != null ? p.qty.toLocaleString('de-DE') + ' Stk.' : 'Stückzahl fehlt'}${p.price != null ? ' · ' + eur(p.price) : ''}${p.date ? ' · ' + H.fd(p.date) : ''}</small></button><span class="fin-v">${eur(posValue(p))}${q ? `<small class="${q.rel >= 0 ? 'pos' : 'neg'}">${pct(q.rel)}</small>` : ''}</span></div>`; }).join('')}
-      ${a.kind === 'Depot' || ps.length ? `<div class="kv"><span>Guthaben</span><span>${eur(num(a.cash))}</span></div>` : `<div class="kv"><span>Stand</span><span>${a.asOf ? H.fdy(a.asOf) : '–'}</span></div>`}
+    const v = accValue(a), ps = F.positions.filter(p => p.acc === a.id).sort((x, y) => (posValue(y) || 0) - (posValue(x) || 0)), pl = finPL(ps);
+    const ah = h.filter(x => x.acc && x.acc[a.id] != null && (x.acc[a.id] > 0 || v.total === 0)).map(x => ({ d: x.d, v: x.acc[a.id] }));
+    const ap = ah.length > 1 ? ah[ah.length - 2] : null, al = ah[ah.length - 1];
+    const aplans = F.plans.filter(x => x.acc === a.id), asum = aplans.reduce((s2, x) => s2 + (x.amount || 0), 0);
+    const nextPlan = aplans.map(x => x.next).filter(Boolean).sort()[0];
+    const tot = ps.reduce((s2, p) => s2 + (posValue(p) || 0), 0) || 1;
+    out += `<section class="card fin-accc"><h2><button class="t" data-act="facc" data-id="${a.id}">${esc(a.name)}<small>${esc([a.kind, a.broker].filter(Boolean).join(' · '))}${a.asOf ? ' · Stand ' + H.fdy(a.asOf) : ''}</small></button></h2>
+      <div class="fin-total sm">${ps.length || a.cash != null ? eur(v.total) : '–'}</div>${!ps.length && a.cash == null ? '<div class="hint">Kontostand fehlt – antippen und eintragen oder Screenshot an Odi schicken.</div>' : ''}
+      <div class="fin-pills">${plChip(pl.abs, pl.cost, 'seit Kauf')}${ap && al ? plChip(al.v - ap.v, ap.v, 'seit ' + H.fdy(ap.d)) : ''}</div>
+      ${ps.length ? finChart(finRangeOf(ah), ah.length > 1 ? null : null, a.name) : ''}
+      ${ps.length > 1 ? `<div class="fin-alloc">${ps.map((p, i) => `<i style="width:${((posValue(p) || 0) / tot * 100).toFixed(1)}%;background:${FIN_COLORS[i % FIN_COLORS.length]}" title="${esc(p.name)}"></i>`).join('')}</div>` : ''}
+      ${ps.map((p, i) => { const q = posPL(p), val = posValue(p); return `<div class="row fin-pos"><span class="fin-dot" style="background:${FIN_COLORS[i % FIN_COLORS.length]}"></span><button class="t" data-act="fpos" data-id="${p.id}">${esc(p.name)}<small>${[p.qty != null ? p.qty.toLocaleString('de-DE') + ' Stk.' : '', p.price != null ? 'Kurs ' + eur(p.price) : '', p.buy != null ? 'Kauf ' + eur(p.buy) : '', p.wkn ? 'WKN ' + p.wkn : p.isin || '', val != null ? Math.round(val / tot * 100) + ' %' : ''].filter(Boolean).join(' · ')}</small></button><span class="fin-v">${eur(val)}${q ? `<small class="${q.rel >= 0 ? 'pos' : 'neg'}">${q.rel >= 0 ? '▲' : '▼'} ${pct(q.rel).replace(/^[+-]/, '')} · ${q.abs >= 0 ? '+' : '−'}${eur(Math.abs(q.abs), 0)}</small>` : ''}</span></div>`; }).join('')}
+      ${aplans.length ? `<div class="fin-plans"><div class="kv"><span>Sparpläne${nextPlan ? ' · nächste Ausführung ' + H.fd(nextPlan) : ''}</span><b>${eur(asum, 0)} / Monat</b></div>${aplans.map(x => `<div class="kv sub"><span>${esc(x.name)}</span><span>${eur(x.amount, 0)}</span></div>`).join('')}</div>` : ''}
+      ${a.kind === 'Depot' || ps.length ? (a.cash != null ? `<div class="kv"><span>Guthaben</span><span>${eur(num(a.cash))}</span></div>` : '') : `<div class="kv"><span>Stand</span><span>${a.asOf ? H.fdy(a.asOf) : '–'}</span></div>`}
       ${a.kind === 'Depot' ? `<div class="btns"><button class="btn ghost" data-act="fpos" data-acc="${a.id}">+ Position</button></div>` : ''}</section>`;
   });
   return out;
@@ -162,16 +202,20 @@ function editPosition(id, accId) {
     <div class="f2"><label class="f">Stückzahl<input type="text" inputmode="decimal" name="q" value="${n2(p && p.qty)}"></label>
     <label class="f">Einstand (€/Stk.)<input type="text" inputmode="decimal" name="b" value="${n2(p && p.buy)}"></label></div>
     <div class="f2"><label class="f">Kurs (€)<input type="text" inputmode="decimal" name="p" value="${n2(p && p.price)}"></label>
-    <label class="f">Kursdatum<input type="date" name="d" value="${esc(p && p.date || H.today())}"></label></div>${dlgBtns(!!p)}`, (v, f) => {
+    <label class="f">Kursdatum<input type="date" name="d" value="${esc(p && p.date || H.today())}"></label></div>
+    <div class="hint">Ohne Stückzahl: Positionswert und Einstand gesamt reichen.</div>
+    <div class="f2"><label class="f">Wert gesamt (€)<input type="text" inputmode="decimal" name="vv" value="${n2(p && p.value)}"></label>
+    <label class="f">Einstand gesamt (€)<input type="text" inputmode="decimal" name="cc" value="${n2(p && p.cost)}"></label></div>${dlgBtns(!!p)}`, (v, f) => {
     if (v === 'del') { askConfirm('„' + p.name + '“ entfernen?', 'Entfernen').then(ok => { if (ok) { F.positions = F.positions.filter(x => x !== p); finSnapshot(); save('Entfernt'); } }); return; }
-    if (p) { p.name = f.n.value.trim() || p.name; p.isin = f.i.value.trim().toUpperCase(); p.qty = num(f.q.value); p.buy = num(f.b.value); p.price = num(f.p.value); p.date = f.d.value; finSnapshot(); }
-    else finTool('set_position', { account: acc.id, name: f.n.value, isin: f.i.value, qty: f.q.value, buyPrice: f.b.value, price: f.p.value || null, priceDate: f.d.value });
+    if (p) { p.name = f.n.value.trim() || p.name; p.isin = f.i.value.trim().toUpperCase(); p.qty = num(f.q.value); p.buy = num(f.b.value); p.price = num(f.p.value); p.value = num(f.vv.value); p.cost = num(f.cc.value); p.date = f.d.value; finSnapshot(); }
+    else finTool('set_position', { account: acc.id, name: f.n.value, isin: f.i.value, qty: f.q.value, buyPrice: f.b.value, price: f.p.value || null, value: f.vv.value || null, cost: f.cc.value || null, priceDate: f.d.value });
     save('Gespeichert');
   });
 }
 function finAct(act, b) {
   if (act === 'facc') { editAccount(b.dataset.id); return true; }
   if (act === 'fpos') { editPosition(b.dataset.id, b.dataset.acc); return true; }
+  if (act === 'frange') { finRange = b.dataset.v; render(); return true; }
   if (act === 'fsnap') { finSnapshot(); save('Stand vom ' + H.fd(H.today()) + ' gespeichert'); return true; }
   return false;
 }
