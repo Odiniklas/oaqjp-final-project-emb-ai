@@ -1,6 +1,6 @@
 /* Lebenshub Service Worker: Offline-Betrieb + Erinnerungen im Hintergrund */
 importScripts('sched.js');
-const V = 'lebenshub-shell-v21';
+const V = 'lebenshub-shell-v22';
 const ASSETS = ['./', 'index.html', 'styles.css', 'app.js', 'unpack.js', 'docs.js', 'fin.js', 'finplan.js', 'life.js', 'pension.js', 'know.js', 'tiktok.js', 'brain.js', 'health.js', 'mail.js', 'weather.js', 'music.js', 'photos.js', 'cal.js', 'chat.js', 'voice.js', 'store.js', 'vendor/anthropic-sdk-1.5.0.mjs', 'sched.js', 'manifest.webmanifest', 'icon.svg', 'icon-180.png', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', e => {

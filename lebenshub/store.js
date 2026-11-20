@@ -20,6 +20,23 @@ function askText(title, ph) {
     (v, f) => res(v === 'ok' ? f.t.value : ''), () => res('')), 0));
 }
 
+/* Große Bereiche liegen in eigenen Datenbank-Dokumenten (parts/<name>), damit hub/state klein bleibt.
+   Alter Stand mit know/brain direkt in hub/state wird beim ersten Speichern automatisch umgezogen. */
+const SPLIT = ['know', 'brain'];
+const artPart = { json: {}, data: {}, loaded: {} };
+function artHubPart(s) { const o = Object.assign({}, s); SPLIT.forEach(k => { delete o[k]; }); return o; }
+function artPartsInit() {
+  SPLIT.forEach(k => ART.db.doc('parts/' + k).onSnapshot(sn => {
+    if (sn.metadata && sn.metadata.hasPendingWrites) return;
+    artPart.loaded[k] = true;
+    if (sn.exists) {
+      const d = (sn.data() || {}).data, j = JSON.stringify(d === undefined ? null : d);
+      artPart.data[k] = JSON.parse(j);
+      if (j !== artPart.json[k]) { artPart.json[k] = j; S[k] = JSON.parse(j); render(); }
+    }
+    if (ART.ready && SPLIT.every(x => artPart.loaded[x])) { artSave(); artProcessInbox(); }
+  }, () => { artPart.loaded[k] = true; }));
+}
 async function artInit() {
   if (!(window.claude && typeof window.claude.use === 'function')) return;
   const names = ['db', 'sample', 'assets', 'downloads', 'dictation', 'tts', 'mcp'];
@@ -31,6 +48,7 @@ async function artInit() {
   if (ART.sample) { try { const l = await ART.sample.limits(); ART.imgMax = l && l.images ? l.images.maxCount : 0; ART.toolMax = l && l.tools ? l.tools.maxCount : 0; } catch (e) { ART.imgMax = 0; ART.toolMax = 0; } }
   if (!ART.db) { render(); return; }
   if (typeof ttInit === 'function') ttInit();
+  artPartsInit();
   const loadTimer = setTimeout(() => { if (!ART.ready) toast('Deine Daten bei Claude sind gerade nicht erreichbar – du siehst den zuletzt gespeicherten Stand.'); }, 10000);
   ART.db.doc('hub/state').onSnapshot(snap => {
     if (snap.metadata.hasPendingWrites) return;
@@ -41,6 +59,7 @@ async function artInit() {
         artLastJson = j;
         const keep = S.settings;
         S = JSON.parse(j);
+        SPLIT.forEach(k => { if (artPart.data[k] !== undefined) S[k] = JSON.parse(JSON.stringify(artPart.data[k])); });
         S.settings = Object.assign({ notify: false, defTime: '08:00', theme: 'auto' }, keep, S.settings || {});
         if (!S.lists) S.lists = {}; if (!Array.isArray(S.routines)) S.routines = [];
         C.forEach(c => { if (!S.lists[c.k]) S.lists[c.k] = []; });
@@ -49,7 +68,7 @@ async function artInit() {
     } else if (!snap.metadata.fromCache && !isEmpty()) {
       artSaveNow(); // erster Start im Artefakt: lokalen Stand hochladen
     }
-    if (!snap.metadata.fromCache) { const first = !ART.ready; ART.ready = true; clearTimeout(loadTimer); artProcessInbox(); if (first && typeof driveHealthAuto === 'function') setTimeout(driveHealthAuto, 1500); if (first && typeof mailAuto === 'function') setTimeout(mailAuto, 2500); if (first && typeof brainAuto === 'function') setTimeout(brainAuto, 3000); if (first && typeof calAuto === 'function') setTimeout(calAuto, 2000); }
+    if (!snap.metadata.fromCache) { const first = !ART.ready; ART.ready = true; clearTimeout(loadTimer); artProcessInbox(); if (first && SPLIT.every(k => artPart.loaded[k])) artSave(); if (first && typeof driveHealthAuto === 'function') setTimeout(driveHealthAuto, 1500); if (first && typeof mailAuto === 'function') setTimeout(mailAuto, 2500); if (first && typeof brainAuto === 'function') setTimeout(brainAuto, 3000); if (first && typeof calAuto === 'function') setTimeout(calAuto, 2000); }
     render();
   }, e => { clearTimeout(loadTimer); ART.ready = true; toast('Daten konnten nicht geladen werden (' + e.code + ').'); render(); });
   ART.db.collection('docs').onSnapshot(q => { DOCS = q.docs.map(d => Object.assign({}, d.data(), { id: d.id })); render(); }, () => {});
@@ -60,19 +79,24 @@ function artSave() { if (!ART.db) return; clearTimeout(artSaveT); artSaveT = set
 async function artSaveNow() {
   if (!ART.db) return;
   if (artWriting) { artAgain = true; return; }
-  const j = JSON.stringify(S);
-  if (j === artLastJson) return;
-  if (j.length > 240000) { toast('Dein Hub ist zu groß zum Speichern bei Claude – bitte alte Einträge aufräumen.'); return; }
-  artWriting = true; artLastJson = j;
-  try { await ART.db.doc('hub/state').set({ state: JSON.parse(j), at: new Date().toISOString() }); }
-  catch (e) { artLastJson = ''; toast('Speichern bei Claude fehlgeschlagen (' + (e.code || '?') + ').'); }
+  if (!SPLIT.every(k => artPart.loaded[k])) { artSave(); return; } // erst speichern, wenn alle Teile geladen sind
+  const j = JSON.stringify(artHubPart(S)), at = new Date().toISOString();
+  const parts = SPLIT.map(k => [k, JSON.stringify(S[k] === undefined ? null : S[k])]).filter(x => x[1] !== artPart.json[x[0]]);
+  if (j === artLastJson && !parts.length) return;
+  const big = [['Hub', j]].concat(parts).find(x => x[1].length > 240000);
+  if (big) { toast('Bereich „' + big[0] + '“ ist zu groß zum Speichern bei Claude – bitte alte Einträge aufräumen.'); return; }
+  artWriting = true;
+  try {
+    for (const [k, pj] of parts) { await ART.db.doc('parts/' + k).set({ data: JSON.parse(pj), at }); artPart.json[k] = pj; artPart.data[k] = JSON.parse(pj); }
+    if (j !== artLastJson) { artLastJson = j; await ART.db.doc('hub/state').set({ state: JSON.parse(j), at }); }
+  } catch (e) { artLastJson = ''; SPLIT.forEach(k => { artPart.json[k] = ''; }); toast('Speichern bei Claude fehlgeschlagen (' + (e.code || '?') + ').'); }
   artWriting = false;
   if (artAgain) { artAgain = false; artSaveNow(); }
 }
 
 /* Ergebnisse der geplanten Claude-Jobs übernehmen: inbox/<id> = {source, at, summary, actions:[{tool,…}]} */
 async function artProcessInbox() {
-  if (!ART.db || !ART.ready || artInboxBusy || !ART.inbox.length) return;
+  if (!ART.db || !ART.ready || artInboxBusy || !ART.inbox.length || !SPLIT.every(k => artPart.loaded[k])) return;
   artInboxBusy = true;
   try {
     for (const id of ART.inbox.slice()) {

@@ -35,7 +35,9 @@ Installierbare Web-App (PWA). Läuft offline, alle Daten bleiben lokal auf dem G
 
 ## Betrieb als Claude-Artefakt (empfohlen)
 Dieselbe App läuft auch als Claude-Artefakt (`python3 tools/build_artifact.py out.html` baut die einzelne Seite). Dort:
-- Daten privat in der Artefakt-Datenbank (`hub/state`, Dokumente unter `docs/*` mit Dateien als Assets) – auf allen Geräten gleich
+- Daten privat in der Artefakt-Datenbank (`hub/state`; Wissen und Gehirn getrennt in `parts/know` und `parts/brain`, TikTok in `tiktok/data`; Dokumente unter `docs/*` mit Dateien als Assets) – auf allen Geräten gleich
+- Alter Stand mit Wissen/Gehirn in `hub/state` wird beim ersten Öffnen automatisch umgezogen; gespeichert wird erst, wenn alle Teile geladen sind (kein Überschreiben mit leerem Stand)
+- Wöchentlicher Claude-Job „Kurse & Stand“ (Sa 10:13): Depot- und Kryptokurse, Watchlist (Liste p), Ziele, Sparpläne und Fristen aus Leben – Ergebnis über `inbox/kurse-<Datum>`
 - Assistent und Dokument-Analyse über das Claude-Abo (Capability `sample`), ohne API-Schlüssel
 - Geplante Claude-Jobs schreiben Ergebnisse in die Sammelbox `inbox/<id>` als `{source, at, summary, actions:[{tool, …}]}` (Werkzeuge wie beim Assistenten: add_entry, update_entry, delete_entry, add_routine, complete_routine, delete_routine); die App übernimmt sie beim Öffnen automatisch und zeigt sie unter „Von deinen Claude-Jobs“
 - Bereich „Ablage“ für die Übersicht der Unterlagen
@@ -50,6 +52,10 @@ Lokal testen: `cd lebenshub && python3 -m http.server 8000` → http://localhost
 Dann auf dem Handy:
 - **iPhone**: in Safari öffnen → Teilen → „Zum Home-Bildschirm“. Danach in der App ⚙︎ → „Aktivieren“ (Benachrichtigungen ab iOS 16.4).
 - **Android**: in Chrome öffnen → „App installieren“.
+
+## Tests
+
+`node lebenshub/tests/run.js` (Playwright mit Chromium): rendert alle Bereiche mit synthetischen Daten (`tests/fixture.json`, keine echten Daten) gegen einen Mock von `window.claude` (`tests/mock.js`) und prüft Rechenlogik (Fixkosten, Rente, Vermögen), Odi-Werkzeugauswahl (≤ 20 Werkzeuge) und Sprachbefehle, die getrennte Speicherung samt Umzug sowie die Übernahme von Inbox-Jobs.
 
 ## Dateien
 `index.html`, `styles.css`, `app.js` (Oberfläche), `sched.js` (Terminlogik), `sw.js` (Offline + Hintergrund-Erinnerungen), `manifest.webmanifest`, Icons.
