@@ -116,3 +116,15 @@ body.kb .chat .msgs{max-height:calc(100dvh - 200px)}
 .know input[type=search]{width:100%;padding:10px 12px;border-radius:12px;border:1px solid var(--bd);background:var(--bg);color:var(--tx);font:inherit;font-size:16px;margin-bottom:8px}
 .tags{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px}
 h2.sect{grid-column:1/-1;font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--mut);margin:10px 2px 0}
+.rings{display:flex;justify-content:space-around;gap:8px;flex-wrap:wrap;margin:6px 0 10px}
+.ring{position:relative;width:104px;text-align:center}
+.ring svg{width:84px;height:84px;display:block;margin:0 auto}
+.ring circle{fill:none;stroke-width:9}.ring .bg{stroke:var(--bd)}.ring .fg{stroke:var(--mut);stroke-linecap:round;transition:stroke-dasharray .4s}
+.ring.good .fg{stroke:var(--ok)}.ring.warn .fg{stroke:var(--amb)}.ring.bad .fg{stroke:var(--wr)}
+.ring .rv{position:absolute;top:26px;left:0;right:0;font-size:22px;font-weight:700;font-variant-numeric:tabular-nums}.ring .rv small{font-size:11px;font-weight:600;color:var(--mut)}
+.ring .rl{font-size:13px;font-weight:600;margin-top:4px}.ring .rs{font-size:11px;color:var(--mut)}
+.tips{margin:4px 0 4px;padding-left:18px;font-size:14px}.tips li{margin:3px 0}
+.hbar{margin:6px 0}.hbl{display:flex;justify-content:space-between;font-size:13px;font-variant-numeric:tabular-nums}.hbl span:last-child{color:var(--mut)}
+.macro{display:flex;gap:16px;font-size:13px;color:var(--mut);margin:2px 0 6px}.macro b{color:var(--tx)}
+.spark{width:140px;height:32px;display:block}.spark path{fill:none;stroke:var(--ac);stroke-width:2;vector-effect:non-scaling-stroke}
+.spark.ok path{stroke:var(--ok)}.spark.bad path{stroke:var(--wr)}

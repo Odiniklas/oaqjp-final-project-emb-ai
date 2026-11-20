@@ -1,7 +1,7 @@
 /* Lebenshub Service Worker: Offline-Betrieb + Erinnerungen im Hintergrund */
 importScripts('sched.js');
-const V = 'lebenshub-shell-v9';
-const ASSETS = ['./', 'index.html', 'styles.css', 'app.js', 'unpack.js', 'docs.js', 'fin.js', 'know.js', 'chat.js', 'store.js', 'vendor/anthropic-sdk-1.5.0.mjs', 'sched.js', 'manifest.webmanifest', 'icon.svg', 'icon-180.png', 'icon-192.png', 'icon-512.png'];
+const V = 'lebenshub-shell-v10';
+const ASSETS = ['./', 'index.html', 'styles.css', 'app.js', 'unpack.js', 'docs.js', 'fin.js', 'know.js', 'health.js', 'chat.js', 'store.js', 'vendor/anthropic-sdk-1.5.0.mjs', 'sched.js', 'manifest.webmanifest', 'icon.svg', 'icon-180.png', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(V).then(c => c.addAll(ASSETS.map(u => new Request(u, { cache: 'reload' })))).then(() => self.skipWaiting()));

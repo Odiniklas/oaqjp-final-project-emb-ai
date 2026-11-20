@@ -223,7 +223,7 @@ function render() {
   else if (TAB === 'routines') h = viewRoutines();
   else if (TAB === 'settings') h = viewSettings();
   else if (TAB === 'chat') h = typeof viewChat === 'function' ? viewChat() : '';
-  else h = (TAB === 'money' && typeof finView === 'function' ? finView() : '') + (TAB === 'files' && typeof knowView === 'function' ? knowView() + '<h2 class="sect">Ablage – deine Unterlagen</h2>' : '') + C.filter(c => c.tab === TAB && !(c.hideEmpty && !S.lists[c.k].length)).map(c => listCard(c)).join('') + (typeof docsCard === 'function' && TAB !== 'files' ? docsCard(TAB) : '');
+  else h = (TAB === 'money' && typeof finView === 'function' ? finView() : '') + (TAB === 'health' && typeof healthView === 'function' ? healthView() : '') + (TAB === 'files' && typeof knowView === 'function' ? knowView() + '<h2 class="sect">Ablage – deine Unterlagen</h2>' : '') + C.filter(c => c.tab === TAB && !(c.hideEmpty && !S.lists[c.k].length)).map(c => listCard(c)).join('') + (typeof docsCard === 'function' && TAB !== 'files' ? docsCard(TAB) : '');
   $('body').innerHTML = h;
   if (TAB === 'chat' && typeof scrollChat === 'function') scrollChat();
   if (TAB === 'settings') $('theme').value = S.settings.theme;
@@ -431,7 +431,7 @@ document.addEventListener('click', e => {
     case 'export': download('lebenshub-backup-' + t + '.json', 'application/json', JSON.stringify(S, null, 1)); break;
     case 'import': $('importFile').click(); break;
     case 'reset': askConfirm(ART.db ? 'Wirklich alle Hub-Daten löschen – auf allen Geräten? Mach vorher ein Backup.' : 'Wirklich alle Daten auf diesem Gerät löschen? Mach vorher ein Backup.', 'Alles löschen').then(ok => { if (ok) { const st = S.settings; S = seed(); S.settings = st; save('Zurückgesetzt'); } }); break;
-    default: if (typeof knowAct === 'function' && knowAct(act, b)) break; if (typeof finAct === 'function' && finAct(act, b)) break; if (typeof docAct === 'function' && docAct(act, b)) break; if (typeof chatAct === 'function') chatAct(act, b); break;
+    default: if (typeof healthAct === 'function' && healthAct(act, b)) break; if (typeof knowAct === 'function' && knowAct(act, b)) break; if (typeof finAct === 'function' && finAct(act, b)) break; if (typeof docAct === 'function' && docAct(act, b)) break; if (typeof chatAct === 'function') chatAct(act, b); break;
     case 'install': if (installEvt) { installEvt.prompt(); installEvt.userChoice.finally(() => { installEvt = null; render(); }); } break;
   }
 });
