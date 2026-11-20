@@ -38,7 +38,8 @@ function findAcc(name) {
 }
 function findPos(accId, key) {
   const q = String(key || '').toLowerCase().trim();
-  return fin().positions.find(p => (!accId || p.acc === accId) && (p.id === key || (p.isin && p.isin.toLowerCase() === q) || p.name.toLowerCase() === q));
+  const P = fin().positions.filter(p => !accId || p.acc === accId);
+  return P.find(p => p.id === key) || P.find(p => (p.isin && p.isin.toLowerCase() === q) || (p.wkn && p.wkn.toLowerCase() === q)) || P.find(p => p.name.toLowerCase() === q);
 }
 
 /* ---------- Werkzeuge für Assistent, Abo-Modus und Claude-Jobs ---------- */
@@ -57,7 +58,7 @@ function finTool(name, x) {
   if (name === 'set_position') {
     const a = findAcc(x.account);
     if (!a) throw new Error('Konto „' + (x.account || '') + '“ nicht gefunden – zuerst set_account');
-    let p = findPos(a.id, x.isin || x.name) || (x.id && findPos(a.id, x.id));
+    let p = (x.id && findPos(a.id, x.id)) || (x.isin && findPos(a.id, x.isin)) || (x.wkn && findPos(a.id, x.wkn)) || findPos(a.id, x.name);
     if (!p) { p = { id: uid(), acc: a.id, name: String(x.name || x.isin || 'Position').trim(), isin: '', qty: null, buy: null, price: null, date: '' }; F.positions.push(p); }
     if (x.name) p.name = String(x.name).trim();
     if (x.isin) p.isin = String(x.isin).toUpperCase();
@@ -154,37 +155,58 @@ function finRangeOf(pts) { const days = (FIN_RANGES.find(r => r[0] === finRange)
 function finRangeChips() { return `<div class="fin-range">${FIN_RANGES.map(r => `<button class="chip ${finRange === r[0] ? '' : 'd'}" data-act="frange" data-v="${r[0]}">${r[1]}</button>`).join('')}</div>`; }
 function finPL(ps) { return ps.reduce((s, p) => { const q = posPL(p); return q ? { abs: s.abs + q.abs, cost: s.cost + posCost(p) } : s; }, { abs: 0, cost: 0 }); }
 function plChip(abs, base, label) { if (!base) return ''; const up = abs >= 0; return `<span class="fin-pill ${up ? 'pos' : 'neg'}"><b>${up ? '▲' : '▼'} ${pct(abs / base * 100).replace(/^[+-]/, '')}</b><small>${up ? '+' : '−'}${eur(Math.abs(abs))} · ${label}</small></span>`; }
+/* Thema einer Position (für die Aufteilung) */
+const FIN_THEMES = [['Technologie & KI', /tech|informat|ai\b|künstl|disrupt|digital|robot|semicond/i], ['Schwellenländer', /\bem\b|emerging|schwellen/i], ['Gold & Rohstoffe', /gold|silber|rohstoff|commod/i], ['Wasser & Umwelt', /water|wasser|clean|umwelt|energy/i], ['Welt (breit)', /world|welt|acwi|all.?country/i]];
+const finTheme = p => (FIN_THEMES.find(t => t[1].test(p.name)) || ['Sonstiges'])[0];
+function finBar(parts, total) {
+  const ps = parts.filter(x => x.v > 0).sort((a, b) => b.v - a.v);
+  return `<div class="fin-alloc">${ps.map((x, i) => `<i style="width:${(x.v / total * 100).toFixed(1)}%;background:${FIN_COLORS[i % FIN_COLORS.length]}"></i>`).join('')}</div>
+    <div class="fin-leg">${ps.map((x, i) => `<span><i style="background:${FIN_COLORS[i % FIN_COLORS.length]}"></i>${esc(x.n)} <b>${Math.round(x.v / total * 100)} %</b></span>`).join('')}</div>`;
+}
+function finKpis(list) { return `<div class="fin-kpis">${list.filter(Boolean).map(k => `<div><small>${k[0]}</small><b class="${k[2] || ''}">${k[1]}</b></div>`).join('')}</div>`; }
 function finView() {
   const F = fin(), t = finTotals(), h = F.history, allPL = finPL(F.positions);
   const pts = finRangeOf(h.map(x => ({ d: x.d, v: x.total })));
   const prev = h.length > 1 ? h[h.length - 2] : null, last = h[h.length - 1];
   const plans = F.plans.reduce((s2, x) => s2 + (x.amount || 0), 0);
+  const accs = F.accounts.filter(a => F.positions.some(p => p.acc === a.id) || a.cash != null);
+  const missing = F.accounts.filter(a => !accs.includes(a));
+  const byTheme = {}; F.positions.forEach(p => { const v = posValue(p) || 0; byTheme[finTheme(p)] = (byTheme[finTheme(p)] || 0) + v; });
   let out = `<section class="card wide fin-hero"><div class="fin-label">Gesamtvermögen</div>
-    <div class="fin-total">${F.accounts.length ? eur(t.total) : '–'}</div>
-    <div class="fin-pills">${plChip(allPL.abs, allPL.cost, 'seit Kauf')}${prev && last ? plChip(last.total - prev.total, prev.total, 'seit ' + H.fdy(prev.d)) : ''}</div>
-    ${finChart(pts, null, 'Vermögensverlauf')}${h.length > 2 ? finRangeChips() : ''}
-    <div class="fin-split"><span>Wertpapiere <b>${eur(t.depot, 0)}</b></span><span>Guthaben <b>${eur(t.cash, 0)}</b></span>${allPL.cost ? `<span>Investiert <b>${eur(allPL.cost, 0)}</b></span>` : ''}${plans ? `<span>Sparpläne <b>${eur(plans, 0)}/Monat</b></span>` : ''}</div>
-    ${!F.accounts.length ? '<div class="hint">Noch keine Konten. Leg Trade Republic und comdirect an – oder schick dem Assistenten Screenshots deiner Depot- und Kontoübersicht, er trägt alles ein.</div>' : ''}
-    <div class="btns"><button class="btn ghost" data-act="facc">+ Konto / Depot</button>${F.accounts.length ? '<button class="btn ghost" data-act="fsnap">Stand speichern</button>' : ''}</div></section>`;
-  F.accounts.forEach(a => {
+    <div class="fin-total">${accs.length ? eur(t.total) : '–'}</div>
+    <div class="fin-pills">${plChip(allPL.abs, allPL.cost, 'seit Kauf')}${prev && last && prev.total ? plChip(last.total - prev.total, prev.total, 'seit ' + H.fdy(prev.d)) : ''}</div>
+    ${pts.length >= 3 ? finChart(pts, null, 'Vermögensverlauf') + finRangeChips() : ''}
+    ${accs.length ? finKpis([['Investiert', eur(allPL.cost, 0)], ['Gewinn', (allPL.abs >= 0 ? '+' : '−') + eur(Math.abs(allPL.abs), 0), allPL.abs >= 0 ? 'pos' : 'neg'], ['Sparpläne', eur(plans, 0) + '/Mon.'], ['Positionen', String(F.positions.length)], t.cash ? ['Guthaben', eur(t.cash, 0)] : null]) : ''}
+    ${accs.length > 1 ? `<div class="fin-label sm">Aufteilung nach Depot</div>${finBar(accs.map(a => ({ n: a.name.replace(/ Depot$/, ''), v: accValue(a).total })), t.total || 1)}` : ''}
+    ${F.positions.length > 2 ? `<div class="fin-label sm">Aufteilung nach Thema</div>${finBar(Object.entries(byTheme).map(([n, v]) => ({ n, v })), t.depot || 1)}` : ''}
+    ${!F.accounts.length ? '<div class="hint">Noch keine Konten. Schick Odi Screenshots deiner Depot- und Kontoübersicht – er trägt alles ein.</div>' : ''}
+    ${missing.length ? `<div class="hint">Ohne Stand (ausgeblendet): ${missing.map(a => `<button class="chip d" data-act="facc" data-id="${a.id}">${esc(a.name)}</button>`).join(' ')}</div>` : ''}
+    <div class="btns"><button class="btn ghost" data-act="facc">+ Konto / Depot</button></div></section>`;
+  accs.forEach(a => {
     const v = accValue(a), ps = F.positions.filter(p => p.acc === a.id).sort((x, y) => (posValue(y) || 0) - (posValue(x) || 0)), pl = finPL(ps);
-    const ah = h.filter(x => x.acc && x.acc[a.id] != null && (x.acc[a.id] > 0 || v.total === 0)).map(x => ({ d: x.d, v: x.acc[a.id] }));
+    const ah = h.filter(x => x.acc && x.acc[a.id] > 0).map(x => ({ d: x.d, v: x.acc[a.id] }));
     const ap = ah.length > 1 ? ah[ah.length - 2] : null, al = ah[ah.length - 1];
     const aplans = F.plans.filter(x => x.acc === a.id), asum = aplans.reduce((s2, x) => s2 + (x.amount || 0), 0);
     const nextPlan = aplans.map(x => x.next).filter(Boolean).sort()[0];
     const tot = ps.reduce((s2, p) => s2 + (posValue(p) || 0), 0) || 1;
-    out += `<section class="card fin-accc"><h2><button class="t" data-act="facc" data-id="${a.id}">${esc(a.name)}<small>${esc([a.kind, a.broker].filter(Boolean).join(' · '))}${a.asOf ? ' · Stand ' + H.fdy(a.asOf) : ''}</small></button></h2>
-      <div class="fin-total sm">${ps.length || a.cash != null ? eur(v.total) : '–'}</div>${!ps.length && a.cash == null ? '<div class="hint">Kontostand fehlt – antippen und eintragen oder Screenshot an Odi schicken.</div>' : ''}
+    const se = F.series && F.series[a.id];
+    let chart = '';
+    if (se && se.kind === 'pct') chart = `<div class="fin-label sm">Rendite seit Start (zeitgewichtet)</div>${finChart(finRangeOf(se.pts.map(q => ({ d: q[0], v: q[1] }))), 0, a.name, true)}${finRangeChips()}`;
+    else if (se) { const sp = se.pts.map(q => ({ d: q[0], v: q[1] })), lastD = sp[sp.length - 1].d; chart = finChart(finRangeOf(sp.concat(ah.filter(q => q.d > lastD))), null, a.name) + finRangeChips(); }
+    else if (ah.length >= 3) chart = finChart(finRangeOf(ah), null, a.name) + finRangeChips();
+    const plansNamed = aplans.filter(x => !/^Sparplan Nr\./i.test(x.name));
+    out += `<section class="card fin-accc"><h2><button class="t" data-act="facc" data-id="${a.id}">${esc(a.name)}<small>${esc(a.broker || a.kind)}${(ps.find(p => p.date) || {}).date ? ' · Stand ' + H.fdy(ps.map(p => p.date).filter(Boolean).sort().pop()) : ''}</small></button></h2>
+      <div class="fin-total sm">${eur(v.total)}</div>
       <div class="fin-pills">${plChip(pl.abs, pl.cost, 'seit Kauf')}${ap && al ? plChip(al.v - ap.v, ap.v, 'seit ' + H.fdy(ap.d)) : ''}</div>
-      ${(() => { const se = F.series && F.series[a.id];
-        if (se && se.kind === 'pct') return `<div class="fin-label sm">Rendite seit Start (zeitgewichtet)</div>${finChart(finRangeOf(se.pts.map(q => ({ d: q[0], v: q[1] }))), 0, a.name, true)}${finRangeChips()}<div class="hint">Verlauf aus ${esc(se.src || 'Screenshot')} · Stand ${H.fdy(se.pts[se.pts.length - 1][0])}</div>`;
-        if (se) { const sp = se.pts.map(q => ({ d: q[0], v: q[1] })), lastD = sp[sp.length - 1].d; return `${finChart(finRangeOf(sp.concat(ah.filter(q => q.d > lastD))), null, a.name)}${finRangeChips()}<div class="hint">Verlauf bis ${H.fdy(lastD)} aus ${esc(se.src || 'Screenshot')}, danach wöchentliche Kurs-Updates</div>`; }
-        return ps.length ? finChart(finRangeOf(ah), null, a.name) : ''; })()}
-      ${ps.length > 1 ? `<div class="fin-alloc">${ps.map((p, i) => `<i style="width:${((posValue(p) || 0) / tot * 100).toFixed(1)}%;background:${FIN_COLORS[i % FIN_COLORS.length]}" title="${esc(p.name)}"></i>`).join('')}</div>` : ''}
-      ${ps.map((p, i) => { const q = posPL(p), val = posValue(p); return `<div class="row fin-pos"><span class="fin-dot" style="background:${FIN_COLORS[i % FIN_COLORS.length]}"></span><button class="t" data-act="fpos" data-id="${p.id}">${esc(p.name)}<small>${[p.qty != null ? p.qty.toLocaleString('de-DE') + ' Stk.' : '', p.price != null ? 'Kurs ' + eur(p.price) : '', p.buy != null ? 'Kauf ' + eur(p.buy) : '', p.wkn ? 'WKN ' + p.wkn : p.isin || '', val != null ? Math.round(val / tot * 100) + ' %' : ''].filter(Boolean).join(' · ')}</small></button><span class="fin-v">${eur(val)}${q ? `<small class="${q.rel >= 0 ? 'pos' : 'neg'}">${q.rel >= 0 ? '▲' : '▼'} ${pct(q.rel).replace(/^[+-]/, '')} · ${q.abs >= 0 ? '+' : '−'}${eur(Math.abs(q.abs), 0)}</small>` : ''}</span></div>`; }).join('')}
-      ${aplans.length ? `<div class="fin-plans"><div class="kv"><span>Sparpläne${nextPlan ? ' · nächste Ausführung ' + H.fd(nextPlan) : ''}</span><b>${eur(asum, 0)} / Monat</b></div>${aplans.map(x => `<div class="kv sub"><span>${esc(x.name)}</span><span>${eur(x.amount, 0)}</span></div>`).join('')}</div>` : ''}
-      ${a.kind === 'Depot' || ps.length ? (a.cash != null ? `<div class="kv"><span>Guthaben</span><span>${eur(num(a.cash))}</span></div>` : '') : `<div class="kv"><span>Stand</span><span>${a.asOf ? H.fdy(a.asOf) : '–'}</span></div>`}
-      ${a.kind === 'Depot' ? `<div class="btns"><button class="btn ghost" data-act="fpos" data-acc="${a.id}">+ Position</button></div>` : ''}</section>`;
+      ${chart}
+      ${ps.length ? finKpis([['Investiert', eur(pl.cost, 0)], ['Gewinn', (pl.abs >= 0 ? '+' : '−') + eur(Math.abs(pl.abs), 0), pl.abs >= 0 ? 'pos' : 'neg'], asum ? ['Sparplan', eur(asum, 0) + '/Mon.'] : null, a.cash != null ? ['Guthaben', eur(num(a.cash), 0)] : null]) : ''}
+      ${ps.length > 1 ? `<div class="fin-alloc">${ps.map((p, i) => `<i style="width:${((posValue(p) || 0) / tot * 100).toFixed(1)}%;background:${FIN_COLORS[i % FIN_COLORS.length]}"></i>`).join('')}</div>` : ''}
+      ${ps.map((p, i) => { const q = posPL(p), val = posValue(p), plan = aplans.find(x => x.name.toLowerCase() === p.name.toLowerCase());
+        const sub = [Math.round((val || 0) / tot * 100) + ' %', p.qty != null ? p.qty.toLocaleString('de-DE') + ' Stk.' : '', p.buy != null && p.price != null ? eur(p.buy) + ' → ' + eur(p.price) : '', plan ? '🔁 ' + eur(plan.amount, 0) + '/Mon.' : ''].filter(Boolean).join(' · ');
+        return `<div class="row fin-pos"><span class="fin-dot" style="background:${FIN_COLORS[i % FIN_COLORS.length]}"></span><button class="t" data-act="fpos" data-id="${p.id}">${esc(p.name)}<small>${sub}</small></button><span class="fin-v">${eur(val)}${q ? `<small class="${q.rel >= 0 ? 'pos' : 'neg'}">${q.rel >= 0 ? '▲' : '▼'} ${pct(q.rel).replace(/^[+-]/, '')} · ${q.abs >= 0 ? '+' : '−'}${eur(Math.abs(q.abs), 0)}</small>` : ''}</span></div>`; }).join('')}
+      ${aplans.length ? `<div class="hint fin-planline">🔁 Sparpläne ${eur(asum, 0)}/Monat${nextPlan ? ' · nächste Ausführung ' + H.fd(nextPlan) : ''}${aplans.length > plansNamed.length ? ` · ${aplans.length - plansNamed.length}× ohne Angabe des Wertpapiers` : ''}</div>` : ''}
+      ${se ? `<div class="hint">Verlauf ${se.kind === 'pct' ? '' : 'bis ' + H.fdy(se.pts[se.pts.length - 1][0]) + ' '}aus ${esc(se.src || 'Screenshot')}, danach wöchentliche Kurs-Updates.</div>` : ''}
+      <div class="btns"><button class="btn ghost" data-act="fpos" data-acc="${a.id}">+ Position</button></div></section>`;
   });
   return out;
 }

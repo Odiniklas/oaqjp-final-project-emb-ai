@@ -28,10 +28,10 @@ const C = [
   { k: 'a', tab: 'work', title: 'Eigene Arbeit', st: ['Läuft', 'Geplant', 'Fertig'] },
   { k: 'u', tab: 'work', title: 'Startups & Ideen', st: ['Idee', 'Validierung', 'Zurückgestellt'] },
   { k: 'k', tab: 'money', hideEmpty: 1, title: 'Weitere Konten (Notizen)', date: 1, hint: 'Konto/Depot mit Stand im Feld „Notiz / Wert“, Datum = Stichtag. Keine IBAN oder Kontonummern.' },
-  { k: 'z', tab: 'money', title: 'Fixkosten & Abos', date: 1, hint: 'Betrag und Rhythmus als Notiz, Datum = nächste Fälligkeit oder Kündigungsfrist.' },
+  { k: 'z', tab: 'money', hideEmpty: 1, title: 'Fixkosten & Abos', date: 1, hint: 'Betrag und Rhythmus als Notiz, Datum = nächste Fälligkeit oder Kündigungsfrist.' },
   { k: 'g', tab: 'money', title: 'Finanzen im Überblick', hint: 'Eigene Angaben, ohne Gewähr. Wert im Feld „Notiz / Wert“ eintragen.' },
-  { k: 'i', tab: 'money', title: 'Startup-Beteiligungen', st: ['Beobachten', 'Prüfen', 'Investiert'] },
-  { k: 'p', tab: 'money', title: 'Börse & Portfolio', st: ['Beobachten', 'Prüfen', 'Position'] },
+  { k: 'i', tab: 'money', compact: 1, title: 'Startup-Beteiligungen', st: ['Beobachten', 'Prüfen', 'Investiert'] },
+  { k: 'p', tab: 'money', compact: 1, title: 'Börse & Portfolio – Watchlist', st: ['Beobachten', 'Prüfen', 'Position'] },
   { k: 'h', tab: 'health', title: 'Gesundheitsdokumente', st: ['Abgelegt', 'Prüfen', 'Fehlt'], date: 1, hint: 'Nur Titel und Fristen, keine Befunde. Du wirst am Vortag erinnert.' },
   { k: 'x', tab: 'health', title: 'Verletzungen & Beschwerden', st: ['Akut', 'In Behandlung', 'Heilt', 'Ausgeheilt'], dn: 1, date: 1, hint: 'Was, seit wann, Behandlung/Arzt als Notiz. Datum = nächster Termin.' },
   { k: 'v', tab: 'health', title: 'Versicherungen', st: ['Aktiv', 'Angebot', 'Prüfen'], date: 1, hint: 'Fälligkeit/Kündigungsfrist als Datum. Keine Policen-Nummern.' },
@@ -122,6 +122,11 @@ function listCard(c, opts) {
   if (c.date) L.sort((a, b) => (a.d || '9').localeCompare(b.d || '9'));
   if (c.dn) L.sort((a, b) => isDone(c, a) - isDone(c, b));
   const t = H.today();
+  if (c.compact && L.length && L.every(it => !it.t && !it.d)) {
+    const chips = L.map(it => `<button class="chip ${stClass(c.st[it.s] || c.st[0])}" data-act="iedit" data-k="${c.k}" data-id="${it.id}">${esc(it.n)}</button>`).join('');
+    return `<section class="card"><h2>${c.title}<small>${L.length}</small></h2><div class="tags wrap">${chips}</div><div class="hint">Antippen zum Bearbeiten · Farbe = Status (${c.st.join(', ')})</div>
+    <div class="add-row"><input type="text" id="in-${c.k}" data-add="${c.k}" placeholder="Neu …" enterkeyhint="done"><button class="btn" data-act="add" data-k="${c.k}" aria-label="Hinzufügen">+</button></div></section>`;
+  }
   const rows = L.map(it => {
     const done = isDone(c, it);
     const late = it.d && it.d < t && !done;
