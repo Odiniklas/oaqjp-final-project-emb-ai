@@ -22,7 +22,7 @@ function askText(title, ph) {
 
 async function artInit() {
   if (!(window.claude && typeof window.claude.use === 'function')) return;
-  const names = ['db', 'sample', 'assets', 'downloads', 'dictation', 'tts'];
+  const names = ['db', 'sample', 'assets', 'downloads', 'dictation', 'tts', 'mcp'];
   const got = await Promise.all(names.map(n => window.claude.use(n).catch(() => null)));
   names.forEach((n, i) => { ART[n] = got[i]; });
   if (!ART.db && !ART.sample) return;
@@ -48,7 +48,7 @@ async function artInit() {
     } else if (!snap.metadata.fromCache && !isEmpty()) {
       artSaveNow(); // erster Start im Artefakt: lokalen Stand hochladen
     }
-    if (!snap.metadata.fromCache) { ART.ready = true; clearTimeout(loadTimer); artProcessInbox(); }
+    if (!snap.metadata.fromCache) { const first = !ART.ready; ART.ready = true; clearTimeout(loadTimer); artProcessInbox(); if (first && typeof driveHealthAuto === 'function') setTimeout(driveHealthAuto, 1500); }
     render();
   }, e => { clearTimeout(loadTimer); ART.ready = true; toast('Daten konnten nicht geladen werden (' + e.code + ').'); render(); });
   ART.db.collection('docs').onSnapshot(q => { DOCS = q.docs.map(d => Object.assign({}, d.data(), { id: d.id })); render(); }, () => {});

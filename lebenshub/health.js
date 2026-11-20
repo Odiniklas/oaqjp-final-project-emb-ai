@@ -112,7 +112,7 @@ function healthView() {
     <h2>Gesundheit heute<small>${d.src ? 'Quelle: ' + esc(d.src) : 'Check-in, Uhr-Screenshots oder athletedata'}</small></h2>
     <div class="rings">${ring(s.rec, 'Erholung', d.hrv != null ? 'HRV ' + d.hrv + ' ms' : d.rhr != null ? 'Ruhepuls ' + d.rhr : '')}${ring(s.sleep, 'Schlaf', d.sleep != null ? d.sleep.toLocaleString('de-DE') + ' h' : '')}${ring(s.act, 'Aktivität', d.steps != null ? d.steps.toLocaleString('de-DE') + ' Schritte' : '')}</div>
     ${tips.length ? `<ul class="tips">${tips.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
-    <div class="btns"><button class="btn" data-act="hcheck">Check-in</button><button class="btn ghost" data-act="hmeal">+ Mahlzeit (Foto)</button><button class="btn ghost" data-act="hshot">Uhr-Screenshot</button>${ART.sample || (typeof getKey === 'function' && getKey()) ? '<button class="btn ghost" data-act="hana">Analyse</button>' : ''}</div></section>
+    <div class="btns"><button class="btn" data-act="hcheck">Check-in</button><button class="btn ghost" data-act="hmeal">+ Mahlzeit (Foto)</button><button class="btn ghost" data-act="hshot">Uhr-Screenshot</button>${ART.mcp ? `<button class="btn ghost" data-act="hdrive">${S.settings.driveHealth ? 'Apple Health abrufen' : 'Apple Health verbinden'}</button>` : ''}${ART.sample || (typeof getKey === 'function' && getKey()) ? '<button class="btn ghost" data-act="hana">Analyse</button>' : ''}</div></section>
   <section class="card"><h2>Ernährung heute<small>${d.meals.length} Mahlzeit(en)</small></h2>
     ${bar(s.kcal, G.kcal, 'Kalorien', 'kcal')}${bar(s.prot, G.protein, 'Eiweiß', 'g')}
     <div class="macro"><span>Kohlenhydrate <b>${s.carbs} g</b></span><span>Fett <b>${s.fat} g</b></span></div>
@@ -170,6 +170,7 @@ function healthAct(act, b) {
   if (act === 'hgoals') { editGoals(); return true; }
   if (act === 'hmedit') { editMeal(b.dataset.id); return true; }
   if (act === 'hana') { healthAnalysis(); return true; }
+  if (act === 'hdrive') { S.settings.driveHealth = true; driveHealthImport(true); return true; }
   if (act === 'hmeal' || act === 'hshot') {
     TAB = 'chat'; chatDraft = act === 'hmeal' ? 'Das habe ich gerade gegessen – bitte ins Ernährungstagebuch eintragen und mir sagen, was mir heute noch fehlt.' : 'Hier ist mein Uhr-Screenshot – bitte die Werte für heute übernehmen.';
     render(); const fi = $('chatFile'); if (fi) fi.click();
@@ -177,3 +178,57 @@ function healthAct(act, b) {
   }
   return false;
 }
+
+/* ---------- Apple Health über Google Drive (iPhone-Kurzbefehl legt täglich „lebenshub-gesundheit-JJJJ-MM-TT“ ab) ----------
+   Der Hub liest die Dateien über den Google-Drive-Connector des Nutzers (Capability „mcp“), ohne Job und ohne Zusatzkosten. */
+const DRIVE = 'Google Drive';
+function collect(o, pick, out) { // durchläuft beliebige Antwortformen
+  if (o == null) return out;
+  if (Array.isArray(o)) { o.forEach(x => collect(x, pick, out)); return out; }
+  if (typeof o === 'object') { pick(o, out); Object.keys(o).forEach(k => collect(o[k], pick, out)); }
+  return out;
+}
+function parseHealthText(txt, fallbackDate) {
+  const get = re => { const m = txt.match(re); if (!m) return null; let v = m[1].replace(/[.,]$/, ''); if (/^\d{1,3}(\.\d{3})+(,\d+)?$/.test(v) || v.includes(',')) v = v.replace(/\./g, '').replace(',', '.'); const n = parseFloat(v); return isFinite(n) ? n : null; };
+  const dm = txt.match(/datum\s*[:=]\s*(\d{4}-\d{2}-\d{2})/i) || txt.match(/(\d{4}-\d{2}-\d{2})/);
+  const out = { date: dm ? dm[1] : fallbackDate, source: 'Apple Health' };
+  let sl = get(/schlaf[^:\n]*[:=]\s*([\d.,]+)/i);
+  if (sl != null) { if (sl > 1440) sl /= 3600; else if (sl > 24) sl /= 60; if (sl >= 2 && sl <= 14) out.sleep = Math.round(sl * 10) / 10; }
+  const rng = (k, re, a, b) => { const v = get(re); if (v != null && v >= a && v <= b) out[k] = v; };
+  rng('rhr', /ruhepuls[^:\n]*[:=]\s*([\d.,]+)/i, 30, 110);
+  rng('hrv', /hrv[^:\n]*[:=]\s*([\d.,]+)/i, 5, 250);
+  rng('steps', /schritte[^:\n]*[:=]\s*([\d.,]+)/i, 0, 80000);
+  rng('active', /aktiv[^:\n]*[:=]\s*([\d.,]+)/i, 0, 6000);
+  rng('weight', /gewicht[^:\n]*[:=]\s*([\d.,]+)/i, 35, 250);
+  return out;
+}
+async function driveHealthImport(manual) {
+  const mcp = ART.mcp;
+  if (!mcp) { if (manual) toast('Google Drive ist hier nicht verfügbar – bitte den Lebenshub in Claude öffnen.'); return; }
+  const H0 = hl(); H0.imported = H0.imported || {};
+  try {
+    if (manual) toast('Suche neue Apple-Health-Daten in Google Drive …');
+    const since = new Date(Date.now() - 8 * 864e5).toISOString().slice(0, 19) + 'Z';
+    const r = await mcp.callTool(DRIVE, 'search_files', { query: "title contains 'lebenshub-gesundheit' and trashed = false and modifiedTime > '" + since + "'", orderBy: 'modifiedTime desc', pageSize: 8, excludeContentSnippets: true }, { cache: false });
+    const files = collect(r.payload != null ? r.payload : r, (o, out) => { const t = o.title || o.name; if (o.id && t && /lebenshub-gesundheit/i.test(t)) out.push({ id: String(o.id), title: String(t), mod: o.modifiedTime || '' }); }, [])
+      .filter((f, i, a) => a.findIndex(x => x.id === f.id) === i);
+    let n = 0; const labels = [];
+    for (const f of files.slice(0, 8)) {
+      const fd = (f.title.match(/(\d{4}-\d{2}-\d{2})/) || [])[1] || H.today();
+      if (H0.imported[f.id] && H0.imported[f.id] === f.mod) continue;
+      const c = await mcp.callTool(DRIVE, 'read_file_content', { fileId: f.id }, { cache: false });
+      const txt = collect(c, (o, out) => { Object.keys(o).forEach(k => { if (typeof o[k] === 'string' && o[k].length > 5) out.push(o[k]); }); }, []).join('\n');
+      const vals = parseHealthText(txt, fd);
+      if (Object.keys(vals).length > 2) { labels.push(healthTool('set_health_day', vals).label); n++; }
+      H0.imported[f.id] = f.mod || 'x';
+    }
+    S.settings.lastDriveHealth = H.today();
+    if (n) { S.jobLog = [{ source: 'Apple Health (Google Drive)', at: new Date().toISOString(), summary: n + ' Tag(e) übernommen', labels }].concat(S.jobLog || []).slice(0, 30); }
+    save(n ? 'Apple Health: ' + n + ' Tag(e) übernommen' : (manual ? (files.length ? 'Keine neuen Werte.' : 'Noch keine Datei „lebenshub-gesundheit-…“ in Google Drive gefunden.') : undefined));
+  } catch (e) {
+    const code = e && e.code;
+    if (manual || code === 'needs_reauth') toast(code === 'needs_reauth' ? 'Google Drive bitte in den Claude-Einstellungen neu verbinden.' : code === 'server_not_connected' ? 'Google Drive ist in Claude nicht verbunden (Einstellungen → Connectors).' : code === 'not_in_manifest' ? 'Zugriff auf Google Drive wurde für den Hub nicht erlaubt.' : 'Import nicht möglich (' + (code || e.message || '?') + ').');
+  }
+}
+/* Einmal täglich beim Öffnen, wenn eingeschaltet */
+function driveHealthAuto() { if (S.settings && S.settings.driveHealth && ART.mcp && S.settings.lastDriveHealth !== H.today()) driveHealthImport(false); }
