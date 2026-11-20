@@ -19,6 +19,7 @@ Installierbare Web-App (PWA). Läuft offline, alle Daten bleiben lokal auf dem G
 - **Termine aus Fotos**: Fotos/Screenshots von Terminzetteln (z. B. Physio) auswählen, Claude liest Datum, Uhrzeit und Ort aus, trägt sie unter „Termine“ ein und erstellt eine .ics-Datei für den iPhone-Kalender (Erinnerung 1 h vorher)
 - **Musik**: Claude stellt passend zur Stimmung (Training, Fokus, Entspannung, Gute Laune) und Tagesform 10 Songs zusammen, jeder öffnet sich in Apple Music oder Spotify
 - **Assistent „Odi“**: einstellbare Persönlichkeit (KI-Butler), Stimme, Tempo, Tonhöhe; Direktaufruf über den Link-Zusatz `#odi`, z. B. per Siri-Kurzbefehl „Hey Siri, Odi“ (siehe ANLEITUNG-HEY-ODI.md)
+- **Gehirn** (Bereich Wissen): verknüpft Wissen, Dokumente, Listeneinträge, Routinen und Depot-Positionen zu einem Netz – über Themen, gemeinsame Schlagworte und von Claude gefundene Verbindungen; Suche, Antippen zeigt Verbindungen; Claude lässt es alle 3 Tage selbst wachsen (Themen, Verknüpfungen, Erkenntnisse, offene Fragen); Assistent und Claude-Jobs ergänzen es über `add_insight` und `link_items`
 - **Wissen**: Paper, Studien, Artikel, Videos, Notizen mit Zusammenfassung, Kernaussagen, Themen und Lesestatus; Dokumente lassen sich übernehmen, der Assistent speichert (`add_knowledge`) und liest (`get_knowledge`) Wissen; Ablage-Listen im selben Bereich
 - **Suche** über alle Listen, Routinen, Dokumente und Positionen; farbige Status (fehlt/prüfen/erledigt)
 - **Neue Listen**: Konten & Depots, Fixkosten & Abos, Verletzungen & Beschwerden

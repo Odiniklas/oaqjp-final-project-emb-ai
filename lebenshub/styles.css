@@ -142,3 +142,10 @@ input[type=range]{width:100%;accent-color:var(--ac)}
 .orb.on span{animation:orbp 2.4s ease-in-out infinite}
 @keyframes orbp{0%,100%{transform:scale(.72);opacity:1}50%{transform:scale(.9);opacity:.45}}
 @media (prefers-reduced-motion:reduce){.orb.on span{animation:none}}
+.brain-svg{width:100%;height:auto;display:block;margin:8px 0;background:var(--bg2,rgba(127,127,127,.06));border-radius:12px;touch-action:manipulation}
+.br-e{stroke:var(--mut,#8a8f98);stroke-opacity:.28;stroke-width:.8}.br-e.claude{stroke:#7c5cff;stroke-opacity:.5;stroke-dasharray:3 2}.br-e.on{stroke-opacity:.95;stroke-width:1.6}
+.br-n{cursor:pointer}.br-n text{font-size:8.5px;fill:var(--tx,#222);text-anchor:middle;paint-order:stroke;stroke:var(--card,#fff);stroke-width:2.5px;pointer-events:none}.br-n.dim{opacity:.18}
+.br-legend{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--mut,#8a8f98)}.br-legend i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:4px;vertical-align:-1px}
+.br-sel{margin-top:8px}.br-h{font-size:14px;margin:12px 0 4px}.br-ins{padding:6px 0;border-bottom:1px solid var(--line,rgba(127,127,127,.15));font-size:14px}
+.br-q{display:block;width:100%;text-align:left;background:none;border:0;padding:6px 0;color:inherit;font:inherit;font-size:14px;cursor:pointer}
+#brQ{width:100%;box-sizing:border-box}
