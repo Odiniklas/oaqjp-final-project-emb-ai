@@ -317,7 +317,7 @@ function pickVoice() {
       || de.find(v => /Markus|Yannick|Martin|Viktor|Helmut/i.test(v.name)) || de.find(v => /premium|enhanced|erweitert/i.test(v.name)) || de.find(v => v.localService) || de[0] || null;
   } catch (e) { voice = null; }
 }
-try { pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; } catch (e) { /* egal */ }
+try { pickVoice(); speechSynthesis.onvoiceschanged = () => { pickVoice(); if (typeof render === 'function' && document.getElementById('odiVoice')) render(); }; } catch (e) { /* egal */ }
 function unlockTts() { // iOS: Sprachausgabe muss einmal durch eine Berührung freigeschaltet werden
   if (ttsReady) return; ttsReady = true;
   try { const u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); } catch (e) { /* egal */ }
@@ -457,15 +457,20 @@ function aboCard() {
 
 function odiCard() {
   const o = odi(), vs = deVoices();
+  pickVoice();
+  const cur = voice ? voice.name + ' (' + voice.lang + ')' : 'Standardstimme des iPhones';
   return `<section class="card"><h2>Assistent „${esc(o.name)}“</h2>
+    <div class="btns" style="margin-top:0"><button class="btn" data-act="odiPreset" data-v="butler">Butler-Klang</button><button class="btn ghost" data-act="odiPreset" data-v="normal">Normal</button><button class="btn ghost" data-act="odiTest">▶︎ Probe hören</button></div>
+    <div class="hint">Aktive Stimme: <b>${esc(cur)}</b></div>
+    <label class="f">Stimme${vs.length ? '' : ' <small>(Liste noch leer)</small>'}<select id="odiVoice"><option value="">Automatisch (männlich, deutsch)</option>${vs.map(v => `<option ${o.voice === v.name ? 'selected' : ''} value="${esc(v.name)}">${esc(v.name)} (${esc(v.lang)})</option>`).join('')}</select></label>
+    ${vs.length ? '' : `<div class="hint">Diese Ansicht zeigt (noch) keine Stimmenliste. <button class="chip" data-act="odiVoices">Stimmen neu laden</button><br>Dann nutzt Odi die <b>Standardstimme</b> deines iPhones: Einstellungen → Bedienungshilfen → Gesprochene Inhalte → Stimmen → Deutsch → <b>Markus</b> oder <b>Yannick</b> antippen, sodass ein Häkchen dahinter steht.</div>`}
+    <div class="f2"><label class="f">Tempo <b id="odiRateV">${(+o.rate).toFixed(2)}</b><input type="range" id="odiRate" min="0.7" max="1.4" step="0.05" value="${o.rate}"></label><label class="f">Tonhöhe <b id="odiPitchV">${(+o.pitch).toFixed(2)}</b><input type="range" id="odiPitch" min="0.5" max="1.5" step="0.05" value="${o.pitch}"></label></div>
     <div class="f2"><label class="f">Name<input type="text" id="odiName" value="${esc(o.name)}"></label>
     <label class="f">Persönlichkeit<select id="odiOn"><option value="1" ${o.on ? 'selected' : ''}>KI-Butler (souverän, trockener Humor)</option><option value="0" ${o.on ? '' : 'selected'}>Neutral</option></select></label></div>
-    <label class="f">Stimme<select id="odiVoice"><option value="">Automatisch (männlich, deutsch)</option>${vs.map(v => `<option ${o.voice === v.name ? 'selected' : ''} value="${esc(v.name)}">${esc(v.name)} (${esc(v.lang)})</option>`).join('')}</select></label>
-    <div class="f2"><label class="f">Tempo <input type="range" id="odiRate" min="0.7" max="1.4" step="0.05" value="${o.rate}"></label><label class="f">Tonhöhe <input type="range" id="odiPitch" min="0.5" max="1.5" step="0.05" value="${o.pitch}"></label></div>
     <label class="f"><span><input type="checkbox" id="odiSir" ${o.sir ? 'checked' : ''}> mit „Sir“ ansprechen</span></label>
-    <div class="btns"><button class="btn ghost" data-act="odiTest">Probe hören</button></div>
-    <div class="hint">Natürlicher klingt es mit einer „Erweitert“- oder „Premium“-Stimme: iPhone-Einstellungen → Bedienungshilfen → Gesprochene Inhalte → Stimmen → Deutsch (z. B. „Markus“ oder „Yannick“) laden. Aufruf per Siri: Kurzbefehl „Odi“, der den Lebenshub-Link mit <b>#odi</b> öffnet.</div></section>`;
+    <div class="hint">Kein Ton? Lautlos-Schalter am iPhone prüfen. Alles wird sofort gespeichert.</div></section>`;
 }
+document.addEventListener('input', e => { if (e.target.id === 'odiRate' || e.target.id === 'odiPitch') { const l = $(e.target.id + 'V'); if (l) l.textContent = (+e.target.value).toFixed(2); } });
 document.addEventListener('change', e => {
   const id = e.target.id; if (!/^odi/.test(id)) return;
   const o = odi();
@@ -477,7 +482,9 @@ document.addEventListener('change', e => {
   if (id === 'odiSir') o.sir = e.target.checked;
   pickVoice(); save();
 });
-function odiAct(act) {
+function odiAct(act, b) {
+  if (act === 'odiPreset') { const o = odi(); if (b.dataset.v === 'butler') { o.rate = 0.95; o.pitch = 0.85; o.sir = true; o.on = true; } else { o.rate = 1; o.pitch = 1; } unlockTts(); save('Stimme eingestellt'); odiAct('odiTest'); return true; }
+  if (act === 'odiVoices') { try { speechSynthesis.getVoices(); unlockTts(); } catch (e) { /* egal */ } setTimeout(() => { pickVoice(); render(); toast(deVoices().length ? deVoices().length + ' Stimmen gefunden' : 'Keine Stimmenliste – Odi nutzt die iPhone-Standardstimme.'); }, 600); return true; }
   if (act === 'odiTest') { unlockTts(); speak((odi().sir ? 'Guten Tag, Sir. ' : 'Hallo. ') + 'Hier ist ' + odi().name + '. Alle Systeme laufen. Womit kann ich helfen?'); return true; }
   return false;
 }
