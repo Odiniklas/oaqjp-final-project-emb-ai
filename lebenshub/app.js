@@ -223,7 +223,7 @@ function render() {
   $('date').textContent = new Date().toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   const nd = dueRoutines(t).length;
   $('nav').innerHTML = TABS.map(([id, l]) => `<button class="${TAB === id ? 'on' : ''}" data-act="tab" data-v="${id}" ${TAB === id ? 'aria-current="page"' : ''}><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON[id]}</svg>${l}${(id === 'today' || id === 'routines') && nd ? `<span class="badge">${nd}</span>` : ''}</button>`).join('');
-  document.querySelector('.top .icon-btn').classList.toggle('on', TAB === 'settings');
+  document.querySelector('.top [data-v=settings]').classList.toggle('on', TAB === 'settings');
   let h;
   if (TAB === 'today') h = viewToday();
   else if (TAB === 'routines') h = viewRoutines();

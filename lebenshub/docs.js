@@ -79,7 +79,7 @@ async function addFiles(files, areaDefault) {
   for (const it of ex.items) {
     const f0 = it.file;
     const f = f0.type.startsWith('image/') || /\.hei[cf]$/i.test(f0.name) ? await normImage(f0) : f0;
-    const d = { id: uid(), name: f.name || 'Dokument', type: f.type || '', size: f.size, area: it.from ? (it.area || docArea) : (areaDefault || docArea), added: H.today(), blob: f, ...(it.from ? { from: it.from } : {}) };
+    const d = { id: uid(), name: f.name || 'Dokument', type: f.type || '', size: f.size, area: (a0 => a0 === 'auto' ? (typeof guessArea === 'function' ? guessArea((it.from || '') + '/' + (f0.name || '')) : 'work') : a0)(it.from ? (it.area || docArea) : (areaDefault || docArea)), added: H.today(), blob: f, ...(it.from ? { from: it.from } : {}) };
     if (ex.items.length > 3) toast('Speichere ' + (n + 1) + '/' + ex.items.length + ' …');
     try { await DB.put(d); if (!ART.db) DOCS.push(meta(d)); else DOCS = DOCS.filter(x => x.id !== d.id).concat([Object.assign(meta(d), { id: d.id })]); n++; last = d.id; } catch (e) { toast(e.message || 'Speichern fehlgeschlagen'); }
   }
@@ -300,6 +300,13 @@ function busy(on) { document.body.classList.toggle('busy', on); }
 
 /* ---------- Ereignisse ---------- */
 function docAct(act, b) {
+  if (act === 'dup') {
+    openDlg(`<h3>Dokumente hochladen</h3><div class="hint">PDFs, Fotos, Screenshots, Word/Excel/PowerPoint oder ZIP – auch mehrere auf einmal. Danach kann Claude sie analysieren und eintragen.</div>
+      <div class="up-grid"><button class="btn" value="auto">🪄 Automatisch einsortieren</button><button class="btn ghost" value="work">💼 Arbeit</button><button class="btn ghost" value="money">€ Finanzen</button><button class="btn ghost" value="health">❤️ Gesundheit</button></div>
+      <div class="hint">Termine auf Fotos? Dafür im Kalender „Termine aus Fotos“ nutzen. Depot-Screenshots am besten an Odi schicken.</div>
+      <div class="btns"><button class="btn ghost" value="cancel" formnovalidate>Abbrechen</button></div>`, v => { if (!v || v === 'cancel') return; docArea = v; $('docFile').click(); });
+    return true;
+  }
   if (act === 'dadd') { docArea = b.dataset.v; $('docFile').click(); return true; }
   if (act === 'dopen') { openDoc(b.dataset.id); return true; }
   if (act === 'dall') { analyzeAll(b.dataset.v); return true; }
