@@ -190,3 +190,8 @@ input[type=range]{width:100%;accent-color:var(--ac)}
 .life-check{margin-top:8px}.life-check summary{cursor:pointer;font-size:13px;color:var(--mut);display:flex;align-items:center;gap:8px}
 .life-cov{flex:1;height:6px;background:var(--bd);border-radius:3px;overflow:hidden;max-width:120px}.life-cov i{display:block;height:100%;background:var(--ac)}
 .life-ck{font-size:13px;padding:3px 0;color:var(--mut)}.life-ck.ok{color:var(--ok)}
+.goal{padding:8px 0;border-bottom:1px solid var(--bd)}.goal .t{background:none;border:0;padding:0;color:inherit;font:inherit;text-align:left;width:100%;cursor:pointer}.goal .t small{display:block;color:var(--mut);font-size:12px}
+.goal-bar{height:8px;background:var(--bd);border-radius:4px;overflow:hidden;margin:6px 0 4px}.goal-bar i{display:block;height:100%;background:var(--ac)}
+.goal-kv{display:flex;justify-content:space-between;gap:8px;font-size:12px;color:var(--mut)}.goal-kv b{color:var(--tx)}
+.fp-tab{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums;margin:8px 0}.fp-tab th,.fp-tab td{text-align:right;padding:4px 2px}.fp-tab th:first-child,.fp-tab td:first-child{text-align:left;color:var(--mut)}.fp-tab tr.on td{font-weight:700;color:var(--ok)}
+.chart .fp-lo,.chart .fp-hi{stroke:var(--mut)!important;stroke-width:1!important;opacity:.6}

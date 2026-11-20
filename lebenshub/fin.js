@@ -129,6 +129,7 @@ function finSnapshotText() {
   const F = fin();
   if (!F.accounts.length) return 'keine Konten erfasst';
   return JSON.stringify({ konten: F.accounts.map(a => [a.name, a.kind, a.cash, a.asOf]), positionen: F.positions.map(p => [(findAcc(p.acc) || {}).name, p.name, p.isin || p.wkn || '', p.qty, p.buy, p.price, p.date, posValue(p) != null ? Math.round(posValue(p)) : null, posPL(p) ? Math.round(posPL(p).rel * 10) / 10 + '%' : '']),
+    ziele: (F.goals || []).map(g => [g.name, g.target, g.targetMax, g.date, g.saved]),
     sparplaene: F.plans.map(x => [(findAcc(x.acc) || {}).name, x.name, x.amount, x.every, x.next]),
     gesamt: Math.round(finTotals().total), verlauf: F.history.slice(-6).map(h => [h.d, Math.round(h.total)]) });
 }
@@ -183,6 +184,7 @@ function finView() {
     ${!F.accounts.length ? '<div class="hint">Noch keine Konten. Schick Odi Screenshots deiner Depot- und Kontoübersicht – er trägt alles ein.</div>' : ''}
     ${missing.length ? `<div class="hint">Ohne Stand (ausgeblendet): ${missing.map(a => `<button class="chip d" data-act="facc" data-id="${a.id}">${esc(a.name)}</button>`).join(' ')}</div>` : ''}
     <div class="btns"><button class="btn ghost" data-act="facc">+ Konto / Depot</button></div></section>`;
+  out += (typeof fpOverview === 'function' ? fpOverview() : '');
   accs.forEach(a => {
     const v = accValue(a), ps = F.positions.filter(p => p.acc === a.id).sort((x, y) => (posValue(y) || 0) - (posValue(x) || 0)), pl = finPL(ps);
     const ah = h.filter(x => x.acc && x.acc[a.id] > 0).map(x => ({ d: x.d, v: x.acc[a.id] }));
@@ -196,7 +198,7 @@ function finView() {
     else if (se) { const sp = se.pts.map(q => ({ d: q[0], v: q[1] })), lastD = sp[sp.length - 1].d; chart = finChart(finRangeOf(sp.concat(ah.filter(q => q.d > lastD))), null, a.name) + finRangeChips(); }
     else if (ah.length >= 3) chart = finChart(finRangeOf(ah), null, a.name) + finRangeChips();
     const plansNamed = aplans.filter(x => !/^Sparplan Nr\./i.test(x.name));
-    out += `<section class="card fin-accc"><h2><button class="t" data-act="facc" data-id="${a.id}">${esc(a.name)}<small>${esc(a.broker || a.kind)}${(ps.find(p => p.date) || {}).date ? ' · Stand ' + H.fdy(ps.map(p => p.date).filter(Boolean).sort().pop()) : ''}</small></button></h2>
+    out += `<section class="card fin-accc" id="acc-${a.id}"><h2><button class="t" data-act="facc" data-id="${a.id}">${esc(a.name)}<small>${esc(a.broker || a.kind)}${(ps.find(p => p.date) || {}).date ? ' · Stand ' + H.fdy(ps.map(p => p.date).filter(Boolean).sort().pop()) : ''}</small></button></h2>
       <div class="fin-total sm">${eur(v.total)}</div>
       <div class="fin-pills">${plChip(pl.abs, pl.cost, 'seit Kauf')}${ap && al ? plChip(al.v - ap.v, ap.v, 'seit ' + H.fdy(ap.d)) : ''}</div>
       ${chart}
@@ -209,6 +211,7 @@ function finView() {
       ${se ? `<div class="hint">Verlauf ${se.kind === 'pct' ? '' : 'bis ' + H.fdy(se.pts[se.pts.length - 1][0]) + ' '}aus ${esc(se.src || 'Screenshot')}, danach wöchentliche Kurs-Updates.</div>` : ''}
       <div class="btns"><button class="btn ghost" data-act="fpos" data-acc="${a.id}">+ Position</button></div></section>`;
   });
+  out += (typeof fpForecast === 'function' ? fpForecast() : '') + (typeof fpGoals === 'function' ? fpGoals() : '') + (typeof fpCheck === 'function' ? fpCheck() : '');
   return out;
 }
 function editAccount(id) {
@@ -249,6 +252,7 @@ function editPosition(id, accId) {
 function finAct(act, b) {
   if (act === 'facc') { editAccount(b.dataset.id); return true; }
   if (act === 'fpos') { editPosition(b.dataset.id, b.dataset.acc); return true; }
+  if (typeof fpAct === 'function' && fpAct(act, b)) return true;
   if (act === 'frange') { finRange = b.dataset.v; render(); return true; }
   if (act === 'fsnap') { finSnapshot(); save('Stand vom ' + H.fd(H.today()) + ' gespeichert'); return true; }
   return false;

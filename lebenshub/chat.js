@@ -54,7 +54,7 @@ function tools() {
     { name: 'store_attachment', description: 'Angehängte Dateien dieser Nachricht unter „Dokumente“ ablegen.',
       input_schema: { type: 'object', additionalProperties: false, required: ['area', 'title', 'summary'], properties: {
         area: { type: 'string', enum: ['work', 'money', 'health'] }, title: str('Titel'), summary: str('2–4 Sätze') } } }
-  ].concat(typeof FIN_TOOLS !== 'undefined' ? FIN_TOOLS : [], typeof KNOW_TOOLS !== 'undefined' ? KNOW_TOOLS : [], typeof HEALTH_TOOLS !== 'undefined' ? HEALTH_TOOLS : [], typeof BRAIN_TOOLS !== 'undefined' ? BRAIN_TOOLS : [], typeof LIFE_TOOLS !== 'undefined' ? LIFE_TOOLS : [], typeof TT_TOOLS !== 'undefined' ? TT_TOOLS : []);
+  ].concat(typeof FIN_TOOLS !== 'undefined' ? FIN_TOOLS : [], typeof KNOW_TOOLS !== 'undefined' ? KNOW_TOOLS : [], typeof HEALTH_TOOLS !== 'undefined' ? HEALTH_TOOLS : [], typeof BRAIN_TOOLS !== 'undefined' ? BRAIN_TOOLS : [], typeof LIFE_TOOLS !== 'undefined' ? LIFE_TOOLS : [], typeof TT_TOOLS !== 'undefined' ? TT_TOOLS : [], typeof GOAL_TOOLS !== 'undefined' ? GOAL_TOOLS : []);
 }
 
 /* Kompakte Hub-Daten (kurze Schlüssel = weniger Tokens) */
@@ -78,7 +78,7 @@ function hubSnapshot() {
 }
 
 function runTool(name, x, turn) {
-  const fr = (typeof finTool === 'function' ? finTool(name, x || {}) : null) || (typeof knowTool === 'function' ? knowTool(name, x || {}) : null) || (typeof healthTool === 'function' ? healthTool(name, x || {}) : null) || (typeof weatherTool === 'function' ? weatherTool(name, x || {}) : null) || (typeof brainTool === 'function' ? brainTool(name, x || {}) : null) || (typeof lifeTool === 'function' ? lifeTool(name, x || {}) : null) || (typeof ttTool === 'function' ? ttTool(name, x || {}) : null);
+  const fr = (typeof finTool === 'function' ? finTool(name, x || {}) : null) || (typeof knowTool === 'function' ? knowTool(name, x || {}) : null) || (typeof healthTool === 'function' ? healthTool(name, x || {}) : null) || (typeof weatherTool === 'function' ? weatherTool(name, x || {}) : null) || (typeof brainTool === 'function' ? brainTool(name, x || {}) : null) || (typeof lifeTool === 'function' ? lifeTool(name, x || {}) : null) || (typeof ttTool === 'function' ? ttTool(name, x || {}) : null) || (typeof goalTool === 'function' ? goalTool(name, x || {}) : null);
   if (fr) return fr;
   const L = k => { if (!S.lists[k]) throw new Error('Unbekannte Liste ' + k); return S.lists[k]; };
   const stIdx = (k, s) => { const c = C.find(y => y.k === k); if (!c.st || !s) return 0; const i = c.st.findIndex(v => v.toLowerCase() === String(s).toLowerCase()); return i < 0 ? 0 : i; };
@@ -208,6 +208,7 @@ let chatStream = '', chatCtl = null;
 const TOOL_GROUPS = [
   [/termin|eintrag|liste|aufgabe|todo|erinner|routine|bewerb|frist|schritt|notier|merk|lösch|änder|erledigt|abhak/i, ['add_entry', 'update_entry', 'delete_entry', 'add_routine', 'complete_routine', 'delete_routine']],
   [/depot|aktie|etf|kurs|konto|krypto|bitcoin|ethereum|sparplan|position|portfolio|vermögen|trade republic|comdirect|börse/i, ['set_account', 'set_position', 'set_prices', 'remove_position', 'set_saving_plan']],
+  [/ziel|spar|notgroschen|eigenkapital|einrichtung|budget/i, ['set_goal']],
   [/vertrag|versicher|miete|nebenkosten|strom|kfz|auto|handy|abo|kündig|rente|bav|gehalt|netto|einkommen|police|leasing|dienstrad/i, ['set_contract', 'set_income']],
   [/wissen|paper|studie|artikel|buch|lern|video|idee|notiz|recherch|businessplan|berechn|rechne|bewert|kapitalwert|dcf/i, ['add_knowledge', 'get_knowledge']],
   [/schlaf|hrv|puls|schritte|gewicht|essen|mahlzeit|kalorien|eiweiß|protein|gegessen|training|erholt|stimmung|energie|ziel/i, ['set_health_day', 'add_meal', 'set_health_goals']],

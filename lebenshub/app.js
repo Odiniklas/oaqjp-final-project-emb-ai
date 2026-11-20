@@ -30,7 +30,7 @@ const C = [
   { k: 'u', tab: 'work', title: 'Startups & Ideen', st: ['Idee', 'Validierung', 'Zurückgestellt'] },
   { k: 'k', tab: 'money', hideEmpty: 1, title: 'Weitere Konten (Notizen)', date: 1, hint: 'Konto/Depot mit Stand im Feld „Notiz / Wert“, Datum = Stichtag. Keine IBAN oder Kontonummern.' },
   { k: 'z', tab: 'money', hideEmpty: 1, title: 'Fixkosten & Abos', date: 1, hint: 'Betrag und Rhythmus als Notiz, Datum = nächste Fälligkeit oder Kündigungsfrist.' },
-  { k: 'g', tab: 'money', title: 'Finanzen im Überblick', hint: 'Eigene Angaben, ohne Gewähr. Wert im Feld „Notiz / Wert“ eintragen.' },
+  { k: 'g', tab: 'money-alt', title: 'Finanzen im Überblick (alt)', hint: 'Eigene Angaben, ohne Gewähr. Wert im Feld „Notiz / Wert“ eintragen.' },
   { k: 'i', tab: 'money', compact: 1, title: 'Startup-Beteiligungen', st: ['Beobachten', 'Prüfen', 'Investiert'] },
   { k: 'p', tab: 'money', compact: 1, title: 'Börse & Portfolio – Watchlist', st: ['Beobachten', 'Prüfen', 'Position'] },
   { k: 'h', tab: 'health', title: 'Gesundheitsdokumente', st: ['Abgelegt', 'Prüfen', 'Fehlt'], date: 1, hint: 'Nur Titel und Fristen, keine Befunde. Du wirst am Vortag erinnert.' },
