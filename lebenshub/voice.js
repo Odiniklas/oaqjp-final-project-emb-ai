@@ -11,6 +11,7 @@ function wxSentence(d) {
   return [x.desc, tt, x.rain != null ? 'Regenrisiko ' + Math.round(x.rain) + ' Prozent' : ''].filter(Boolean).join(', ') + '.';
 }
 function apptsOn(d) {
+  if (typeof calDay === 'function') return calDay(d).filter(e => e.kind === 't' || e.kind === 'apple' || (e.kind === 'item' && e.tm)).map(e => e.title + (e.tm ? ' um ' + e.tm.replace(/^0/, '') + ' Uhr' : ''));
   return S.lists.t.filter(it => it.d === d).sort((a, b) => (a.tm || '99').localeCompare(b.tm || '99'))
     .map(it => it.n + (it.tm ? ' um ' + it.tm.replace(/^0/, '') + ' Uhr' : ''));
 }

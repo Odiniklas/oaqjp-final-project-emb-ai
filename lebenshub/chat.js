@@ -68,6 +68,7 @@ function hubSnapshot() {
     '\nFinanzen [Konto, Art, Guthaben, Stichtag] / [Konto, Wertpapier, ISIN, Stück, Einstand, Kurs, Kursdatum]: ' + (typeof finSnapshotText === 'function' ? finSnapshotText() : '') +
     '\nWissen [id, Titel, Art, Themen, Status] (Details mit get_knowledge): ' + (typeof knowSnapshotText === 'function' ? knowSnapshotText() : '[]') +
     '\nGesundheit (letzte 7 Tage): ' + (typeof healthSnapshotText === 'function' ? healthSnapshotText() : '{}') +
+    '\nKalender nächste 14 Tage inkl. Apple-Kalender: ' + (typeof calSnapshotText === 'function' ? calSnapshotText() : '{}') +
     '\nGehirn (Erkenntnisse, Verknüpfungen, offene Fragen): ' + (typeof brainSnapshotText === 'function' ? brainSnapshotText() : '{}') + '\n</hub>';
 }
 

@@ -149,3 +149,16 @@ input[type=range]{width:100%;accent-color:var(--ac)}
 .br-sel{margin-top:8px}.br-h{font-size:14px;margin:12px 0 4px}.br-ins{padding:6px 0;border-bottom:1px solid var(--line,rgba(127,127,127,.15));font-size:14px}
 .br-q{display:block;width:100%;text-align:left;background:none;border:0;padding:6px 0;color:inherit;font:inherit;font-size:14px;cursor:pointer}
 #brQ{width:100%;box-sizing:border-box}
+.calc h2{flex-wrap:wrap}.calc .chips{display:flex;gap:6px}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin:6px 0 10px}
+.cal-wd{font-size:11px;color:var(--mut);text-align:center;padding:2px 0}
+.cal-d{background:none;border:0;border-radius:10px;min-height:46px;padding:4px 0;display:flex;flex-direction:column;align-items:center;gap:3px;color:var(--tx);font:inherit;cursor:pointer}
+.cal-d .n{font-size:14px;width:26px;height:26px;line-height:26px;border-radius:50%;text-align:center}
+.cal-d.out{opacity:.35}.cal-d.today .n{background:var(--ac);color:#fff;font-weight:700}.cal-d.sel{background:var(--ac2)}
+.cal-d .dots{display:flex;gap:2px;height:6px}.cal-d .dots i{width:5px;height:5px;border-radius:50%}
+.cal-h{font-size:14px;margin:12px 0 4px}.cal-wx{font-weight:400;color:var(--mut)}
+.cal-ev{display:flex;align-items:stretch;gap:8px;padding:6px 0;border-bottom:1px solid var(--bd)}
+.cal-ev .t{flex:1;text-align:left;background:none;border:0;padding:0;color:inherit;font:inherit;cursor:pointer}.cal-ev .t small{display:block;color:var(--mut);font-size:12px}
+.cal-tm{width:54px;white-space:nowrap;flex:none;font-size:13px;display:flex;flex-direction:column}.cal-tm small{color:var(--mut);font-size:11px}
+.cal-bar{width:3px;border-radius:2px;flex:none}.cal-ev.done{opacity:.5}.cal-ev.done .t{text-decoration:line-through}
+.cal-leg{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--mut);margin-top:8px;align-items:center}.cal-leg i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px}

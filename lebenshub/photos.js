@@ -44,7 +44,7 @@ async function photosToAppts(files) {
     <div class="btns"><button class="btn" value="go">Übernehmen</button><button class="btn ghost" value="cancel" formnovalidate>Abbrechen</button></div>`, (v, f) => {
     const sel = found.filter((a, i) => f['c' + i].checked);
     if (!sel.length) return;
-    sel.forEach(a => { if (!dup(a)) S.lists.t.push({ id: uid(), n: a.title, t: [a.time ? a.time + (a.end ? '–' + a.end : '') + ' Uhr' : '', a.place, a.note].filter(Boolean).join(' · '), d: a.date, tm: a.time, te: a.end, s: 0 }); });
+    sel.forEach(a => { if (!dup(a)) { const it = { id: uid(), n: a.title, t: [a.time ? a.time + (a.end ? '–' + a.end : '') + ' Uhr' : '', a.place, a.note].filter(Boolean).join(' · '), d: a.date, tm: a.time, te: a.end, s: 0 }; S.lists.t.push(it); a.uid = it.id; if (f.ics.checked && typeof cal === 'function') cal().sent[it.id] = calSig(it); } });
     save(sel.length + ' Termin(e) eingetragen');
     if (f.ics.checked) download(sel.length === 1 ? 'termin.ics' : 'termine.ics', 'text/calendar', apptIcs(sel));
   });
@@ -55,7 +55,7 @@ function apptIcs(list) {
   const now = new Date().toISOString().replace(/[-:]/g, '').slice(0, 15) + 'Z';
   const L = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Lebenshub//DE', 'METHOD:PUBLISH'];
   list.forEach(a => {
-    L.push('BEGIN:VEVENT', 'UID:' + uid() + '@lebenshub', 'DTSTAMP:' + now);
+    L.push('BEGIN:VEVENT', 'UID:' + (a.uid || uid()) + '@lebenshub', 'DTSTAMP:' + now);
     if (a.time) {
       const end = a.end || (() => { const [h, m] = a.time.split(':').map(Number), x = h * 60 + m + 60; return String(Math.floor(x / 60) % 24).padStart(2, '0') + ':' + String(x % 60).padStart(2, '0'); })();
       L.push('DTSTART;TZID=Europe/Berlin:' + D(a.date) + 'T' + T(a.time), 'DTEND;TZID=Europe/Berlin:' + D(a.date) + 'T' + T(end));
