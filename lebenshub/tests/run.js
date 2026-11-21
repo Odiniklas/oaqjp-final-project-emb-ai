@@ -120,6 +120,28 @@ async function page(browser, url, seed, extra) {
       ok(errs.length === 0, 'keine JavaScript-Fehler', errs.slice(0, 3));
       await ctx.close();
     }
+    console.log('8) Arbeitskontexte & Hightech, Gehirn-Erkenntnisse');
+    {
+      const fx = JSON.parse(JSON.stringify(FIX));
+      fx.lists.a = [{ id: 'a1', n: 'MOSB-Billing', t: '', d: '', s: 0 }];
+      fx.know.push({ id: 'h1', title: 'Hightech-Idee · Testprüfung', kind: 'Idee', url: '', source: 'Test', summary: 'Synthetische Idee', points: ['P1'], tags: ['Arbeit', 'Hightech-Idee', 'MOSB'], status: 'Gelesen', added: '2026-11-21' });
+      fx.brain = { links: [], topics: {}, questions: [], grown: '', insights: Array.from({ length: 8 }, (_, i) => ({ id: 'i' + i, text: 'Erkenntnis ' + i, refs: i === 0 ? ['know:h1'] : [], at: '2026-11-21' })) };
+      const { p, errs, ctx } = await page(browser, url, fx);
+      const r = await p.evaluate(() => { TAB = 'work'; render(); const c = document.querySelector('.work'); document.querySelector('[data-act=wkCtx][data-v=MOSB]').click();
+        const idea = document.querySelectorAll('.work .wk-idea').length, item = !!document.querySelector('.work [data-act=wkItem][data-id=a1]');
+        document.querySelector('[data-act=wkPilot][data-id=h1]').click(); const pilot = S.work.pilot, shown = !!document.querySelector('.work .wk-pilot');
+        document.querySelector('.wk-pilot [data-act=wkStep]').click(); const steps = S.lists.n.length;
+        return { card: !!c, idea, item, pilot, shown, steps }; });
+      ok(r.card && r.idea === 1 && r.item, 'Arbeitskontext zeigt Idee und passenden Arbeitseintrag', r);
+      ok(r.pilot === 'h1' && r.shown && r.steps === 2, 'Pilot wählen und als nächsten Schritt übernehmen', r);
+      const r2 = await p.evaluate(() => { document.querySelector('[data-act=wkOdi][data-id=h1]').click(); return { tab: TAB, draft: chatDraft.includes('Testprüfung') && chatDraft.includes('übernehmen'), sent: CHAT.length }; });
+      ok(r2.tab === 'chat' && r2.draft && r2.sent === 0, '1-Seiter füllt nur das Odi-Feld', r2);
+      const r3 = await p.evaluate(() => { TAB = 'files'; render(); const n0 = document.querySelectorAll('.br-ins').length; document.querySelector('[data-act=bins]').click(); const n1 = document.querySelectorAll('.br-ins').length;
+        const ref = document.querySelector('.br-refs [data-act=bnode]'); ref.click(); const n2 = document.querySelectorAll('.br-ins').length; return { n0, n1, n2, sel: brSel }; });
+      ok(r3.n0 === 6 && r3.n1 === 8 && r3.n2 === 1 && r3.sel === 'know:h1', 'Erkenntnisse aufklappbar, Bezug antippen filtert', r3);
+      ok(errs.length === 0, 'keine JavaScript-Fehler', errs.slice(0, 3));
+      await ctx.close();
+    }
   } finally { await browser.close(); server.close(); }
   console.log(failed ? '\n' + failed + ' Test(s) fehlgeschlagen.' : '\nAlle Tests bestanden.');
   process.exit(failed ? 1 : 0);

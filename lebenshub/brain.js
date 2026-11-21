@@ -5,7 +5,7 @@
 'use strict';
 const BR_TYPES = { know: ['Wissen', '#7c5cff'], doc: ['Dokument', '#2f8fdd'], item: ['Eintrag', '#16a085'], rt: ['Routine', '#e67e22'], pos: ['Depot', '#c0392b'], topic: ['Thema', '#8a8f98'] };
 const BR_STOP = new Set('aber alle allem allen alles also auch beim bitte dann damit dass dein deine diese dieser dieses doch eine einem einen einer eines etwa euro für gegen haben hatte heute immer jede jeden jeder jedes kann keine machen mehr meine meinem meinen meiner mich mit nach nicht noch oder ohne schon sehr seit sein sich sind soll über unter viel vom von vor wann warum weil wenn werden wieder will wird woche zum zur zwischen zusammenfassung skript notiz eintrag termin prüfen offen erledigt'.split(' '));
-let brSel = null, brBusy = false, brQ = '';
+let brSel = null, brBusy = false, brQ = '', brAllIns = false;
 function brain() { S.brain = Object.assign({ links: [], insights: [], topics: {}, questions: [], grown: '' }, S.brain || {}); return S.brain; }
 const brWords = s => Array.from(new Set(String(s || '').toLowerCase().replace(/[^a-zäöüß0-9 -]/g, ' ').split(/[\s-]+/).filter(w => w.length >= 5 && !BR_STOP.has(w) && !/^\d+$/.test(w))));
 function brNodes() {
@@ -78,10 +78,23 @@ function brainView() {
     <div class="br-legend">${Object.values(BR_TYPES).map(t => `<span><i style="background:${t[1]}"></i>${t[0]}</span>`).join('')}</div>
     ${sel ? `<div class="br-sel"><b>${esc(sel.label)}</b> <span class="chip d">${BR_TYPES[sel.type][0]}</span>${sel.type !== 'topic' ? ` <button class="chip" data-act="bopen" data-id="${esc(sel.id)}">öffnen</button>` : ''} <button class="chip d" data-act="bnode" data-id="">✕</button>
       ${conn.map(c => `<div class="row"><button class="t" data-act="bnode" data-id="${esc(c.n.id)}">${esc(c.n.label)}<small>${esc(BR_TYPES[c.n.type][0])} · ${esc(c.why || '')}</small></button></div>`).join('') || '<div class="hint">Noch keine Verbindungen.</div>'}</div>` : '<div class="hint">Punkt antippen → Verbindungen sehen und öffnen.</div>'}
-    ${B.insights.length ? `<h3 class="br-h">Erkenntnisse</h3>${B.insights.slice(0, 6).map(i => `<div class="br-ins">💡 ${esc(i.text)}</div>`).join('')}` : ''}
+    ${brInsights(G, B, sel)}
     ${B.questions.length ? `<h3 class="br-h">Offene Fragen</h3>${B.questions.slice(0, 4).map(x => `<button class="br-q" data-act="bask" data-v="${esc(x)}">❓ ${esc(x)}</button>`).join('')}` : ''}
     <div class="btns">${ART.sample || (typeof getKey === 'function' && getKey()) ? `<button class="btn" data-act="bgrow" ${brBusy ? 'disabled' : ''}>${brBusy ? 'Gehirn denkt …' : '🧠 Gehirn wachsen lassen'}</button>` : ''}<button class="btn ghost" data-act="bask" data-v="">Gehirn fragen</button></div>
-    <div class="hint">${B.grown ? 'Zuletzt gewachsen: ' + esc(H.fd(B.grown.slice(0, 10))) + '. ' : ''}Wächst von selbst alle 3 Tage beim Öffnen und mit jedem neuen Dokument, Wissen oder Eintrag.</div></section>`;
+    <div class="hint">${B.grown ? 'Zuletzt gewachsen: ' + esc(H.fd(B.grown.slice(0, 10))) + ' · ' : ''}Wächst von selbst alle 3 Tage beim Öffnen und mit jedem neuen Dokument, Wissen oder Eintrag.</div></section>`;
+}
+/* Erkenntnisse: zum gewählten Knoten bzw. zur Suche passend, mit antippbaren Bezügen */
+function brInsights(G, B, sel) {
+  if (!B.insights.length) return '';
+  const q = brQ.trim().toLowerCase(), lab = r => G.byId[r] && G.byId[r].label;
+  let L = B.insights;
+  if (sel) L = L.filter(i => (i.refs || []).includes(sel.id));
+  else if (q) L = L.filter(i => i.text.toLowerCase().includes(q) || (i.refs || []).some(r => String(lab(r) || '').toLowerCase().includes(q)));
+  const n = brAllIns ? L.length : Math.min(L.length, 6);
+  const title = sel ? 'Erkenntnisse zu „' + esc(sel.label.slice(0, 40)) + '“' : q ? 'Passende Erkenntnisse' : 'Erkenntnisse';
+  if (!L.length) return '';
+  return `<h3 class="br-h">${title}<small> ${L.length}</small></h3>${L.slice(0, n).map(i => `<div class="br-ins">💡 ${esc(i.text)}${(i.refs || []).filter(lab).length ? `<div class="br-refs">${(i.refs || []).filter(lab).slice(0, 4).map(r => `<button class="chip d" data-act="bnode" data-id="${esc(r)}">${esc(String(lab(r)).slice(0, 28))}</button>`).join('')}</div>` : ''}</div>`).join('')}
+    ${L.length > 6 ? `<button class="btn ghost" data-act="bins">${brAllIns ? 'Weniger zeigen' : 'Alle ' + L.length + ' zeigen'}</button>` : ''}`;
 }
 /* Claude lässt das Gehirn wachsen */
 async function brainGrow(silent) {
@@ -124,6 +137,7 @@ function brainAct(act, b) {
   if (act === 'bnode') { brSel = b.dataset.id || null; render(); return true; }
   if (act === 'bopen') { brOpen(b.dataset.id); return true; }
   if (act === 'bgrow') { brainGrow(false); return true; }
+  if (act === 'bins') { brAllIns = !brAllIns; render(); return true; }
   if (act === 'bask') { TAB = 'chat'; chatDraft = b.dataset.v || 'Was weiß mein Gehirn über '; render(); const i = $('chatIn'); if (i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } return true; }
   return false;
 }

@@ -217,3 +217,16 @@ pre.prbody{white-space:pre-wrap;font-size:12px;max-height:40vh;overflow:auto;bac
 .jobfb{float:right;display:inline-flex;gap:4px;margin-left:6px}
 .jobfb .chip{padding:2px 7px;min-height:24px;background:transparent;border:1px solid var(--bd)}
 .jobfb .chip.on{background:var(--ac2);border-color:var(--ac)}
+/* Arbeitskontexte & Hightech */
+.work .wk-ctx{border-top:1px solid var(--bd);padding:6px 0}
+.work .wk-h{display:flex;align-items:center;gap:8px;width:100%;background:none;border:0;padding:8px 0;font:inherit;color:inherit;text-align:left;cursor:pointer}
+.work .wk-h b{flex:1;min-width:0}
+.work .wk-i{font-size:20px}
+.work .wk-drv{margin:2px 0 8px 18px;padding:0;font-size:13px;opacity:.85}
+.work .wk-drv li{margin:2px 0}
+.work .wk-idea{display:flex;align-items:flex-start;gap:6px}
+.work .wk-idea .t{flex:1;min-width:0}
+.work .wk-b{display:flex;gap:4px;flex-shrink:0}
+.work .wk-pilot{background:rgba(124,92,255,.08);border-radius:12px;padding:10px 12px;margin:6px 0 10px}
+.br-refs{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+.br-refs .chip{font-size:11px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
