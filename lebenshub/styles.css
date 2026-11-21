@@ -204,3 +204,16 @@ input[type=range]{width:100%;accent-color:var(--ac)}
 pre.prbody{white-space:pre-wrap;font-size:12px;max-height:40vh;overflow:auto;background:var(--bg);border:1px solid var(--bd);border-radius:10px;padding:10px}
 #dlgf details summary{cursor:pointer;color:var(--ac);padding:6px 0;outline:none;list-style-position:inside}
 #dlgf details summary:focus-visible{outline:2px solid var(--ac);border-radius:8px}
+
+/* Promotion-Forschungsstand + Job-Feedback */
+.promo .aprow{display:grid;grid-template-columns:38px 1fr 70px 24px;align-items:center;gap:8px;width:100%;background:none;border:0;border-bottom:1px solid var(--bd);padding:7px 0;color:var(--tx);font:inherit;text-align:left;cursor:pointer}
+.promo .aprow.on{background:var(--ac2)}
+.promo .aprow b{color:var(--ac)}
+.promo .apn{font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.promo .apbar{height:6px;background:var(--bd);border-radius:3px;overflow:hidden}
+.promo .apbar i{display:block;height:100%;background:var(--ac);border-radius:3px}
+.promo .apc{text-align:right;font-variant-numeric:tabular-nums;font-size:13px}
+.promo .apc.thin{color:var(--wr);font-weight:600}
+.jobfb{float:right;display:inline-flex;gap:4px;margin-left:6px}
+.jobfb .chip{padding:2px 7px;min-height:24px;background:transparent;border:1px solid var(--bd)}
+.jobfb .chip.on{background:var(--ac2);border-color:var(--ac)}

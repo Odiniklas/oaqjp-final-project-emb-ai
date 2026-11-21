@@ -104,6 +104,22 @@ async function page(browser, url, seed, extra) {
       ok(errs.length === 0, 'keine JavaScript-Fehler', errs.slice(0, 3));
       await ctx.close();
     }
+
+    console.log('7) Promotion-Forschungsstand und Job-Feedback');
+    {
+      const fx = JSON.parse(JSON.stringify(FIX));
+      fx.know.push({ id: 'k9', title: 'Testpaper Dispatch', kind: 'Paper', url: '', source: 'Test', summary: '', points: [], tags: ['Promotion', 'AP3'], status: 'Zu lesen', added: '2026-11-20' });
+      fx.jobLog = [{ source: 'Wissensagent', at: '2026-11-20T08:00:00Z', summary: 'Test', labels: [] }];
+      const { p, errs, ctx } = await page(browser, url, fx);
+      const r = await p.evaluate(() => { TAB = 'files'; render(); const rows = [...document.querySelectorAll('.promo .aprow')]; const ap3 = rows.find(x => x.dataset.v === 'AP3');
+        ap3.click(); const filtered = document.querySelectorAll('.know .row').length;
+        return { rows: rows.length, ap3: ap3.querySelector('.apc').textContent, tag: KNOWTAG, filtered }; });
+      ok(r.rows === 8 && r.ap3 === '1' && r.tag === 'AP3' && r.filtered === 1, 'AP1–AP8 gezählt, Tippen filtert das Wissen', r);
+      const r2 = await p.evaluate(() => { TAB = 'today'; render(); const b = document.querySelector('[data-act=jobfb][data-v=up]'); if (!b) return { found: false }; b.click(); return { found: true, fb: S.jobLog[0].fb }; });
+      ok(r2.found && r2.fb === 'up', '👍 an einem Job-Ergebnis wird gespeichert', r2);
+      ok(errs.length === 0, 'keine JavaScript-Fehler', errs.slice(0, 3));
+      await ctx.close();
+    }
   } finally { await browser.close(); server.close(); }
   console.log(failed ? '\n' + failed + ' Test(s) fehlgeschlagen.' : '\nAlle Tests bestanden.');
   process.exit(failed ? 1 : 0);
