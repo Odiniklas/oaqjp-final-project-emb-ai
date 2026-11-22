@@ -142,6 +142,21 @@ async function page(browser, url, seed, extra) {
       ok(errs.length === 0, 'keine JavaScript-Fehler', errs.slice(0, 3));
       await ctx.close();
     }
+    console.log('9) Aktienradar-Ampel in den Finanzen');
+    {
+      const { p, errs, ctx } = await page(browser, url, FIX);
+      const r = await p.evaluate(() => { TAB = 'money'; render(); const empty = !!document.querySelector('.radar');
+        const res = runTool('set_radar', { asOf: '2026-11-20', items: [{ name: 'Testaktie A', ticker: 'TA', cat: 'kaufen', val: 'günstig', price: 100, cur: 'EUR', zoneLo: 90, zoneHi: 102, target: 130, pe: 'KGV 12' }, { name: 'Testaktie B', cat: 'nein', val: 'teuer', price: 50, cur: 'USD' }, { name: 'Testaktie C', cat: 'warten', val: 'fair', price: 80, zoneHi: 70, cur: 'EUR' }, { name: 'X', cat: 'unsinn' }] });
+        render(); const rows = [...document.querySelectorAll('.radar .rad-row')].map(x => x.textContent);
+        document.querySelector('[data-act=radCheap]').click(); const cheap = document.querySelectorAll('.radar .rad-row').length;
+        document.querySelector('[data-act=radCat][data-v=""]').click(); document.querySelector('[data-act=radCat][data-v=nein]').click(); const nein = document.querySelectorAll('.radar .rad-row').length;
+        return { empty, n: S.fin.radar.items.length, cats: S.fin.radar.items.map(i => i.cat), first: rows[0] || '', inzone: rows.some(t => t.includes('in der Zone')), over: rows.some(t => t.includes('über Zone')), up: rows.some(t => t.includes('+30,0')), cheap, nein }; });
+      ok(r.empty && r.n === 4 && r.cats[3] === 'beobachten', 'set_radar speichert, unbekannte Kategorie wird „beobachten“', r);
+      ok(r.first.includes('Testaktie A') && r.inzone && r.over && r.up, 'Sortierung kaufen zuerst, Zone und Analystenpotenzial berechnet', r);
+      ok(r.cheap === 1 && r.nein === 1, 'Filter „günstig bewertet“ und Kategorie', r);
+      ok(errs.length === 0, 'keine JavaScript-Fehler', errs.slice(0, 3));
+      await ctx.close();
+    }
   } finally { await browser.close(); server.close(); }
   console.log(failed ? '\n' + failed + ' Test(s) fehlgeschlagen.' : '\nAlle Tests bestanden.');
   process.exit(failed ? 1 : 0);
