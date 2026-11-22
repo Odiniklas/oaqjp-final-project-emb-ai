@@ -1,0 +1,17 @@
+# Buffer-GraphQL-Operationen. NICHT GETESTET: vor der ersten Veröffentlichung mit
+#   node src/cli.js check
+# das Live-Schema abfragen (Introspection) und die Feld-/Mutationsnamen hier anpassen.
+# Doku: https://developers.buffer.com  (Endpunkt und Token siehe docs/API-ZUGAENGE.md)
+
+# --- createPost: plant einen Video-Post für einen Kanal ---
+mutation CreatePost($input: CreatePostInput!) {
+  createPost(input: $input) {
+    ... on PostActionSuccess { post { id status dueAt } }
+    ... on MutationError { message }
+  }
+}
+
+# --- postStatus: Status eines geplanten Posts ---
+query PostStatus($id: PostId!) {
+  post(input: { id: $id }) { id status dueAt error { message } }
+}

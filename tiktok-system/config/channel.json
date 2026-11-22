@@ -1,0 +1,17 @@
+{
+  "channel": "Energie einfach erklärt",
+  "niche": "Energiewende, Strom, Speicher und Solar – verständlich für Laien und Gewerbe",
+  "language": "de-DE",
+  "audience": "18–45, Interesse an Energie, Geld sparen, Technik",
+  "tone": "klar, freundlich, keine Panikmache, keine Übertreibung",
+  "video": { "width": 1080, "height": 1920, "fps": 30, "minSeconds": 25, "maxSeconds": 45 },
+  "style": { "bg1": "#0B1F33", "bg2": "#12395C", "accent": "#FFC93C", "text": "#FFFFFF", "font": "DejaVu Sans, Arial, sans-serif" },
+  "mode": "A",
+  "autonomous": { "enabled": false, "maxPostsPerDay": 1, "requireZeroWarnings": true },
+  "schedule": { "days": ["Mo", "Mi", "Fr"], "time": "18:15", "timezone": "Europe/Berlin" },
+  "channels": { "tiktok": { "enabled": true, "provider": "buffer" }, "instagram_reels": { "enabled": false, "provider": "buffer" }, "youtube_shorts": { "enabled": false, "provider": "buffer" } },
+  "voice": { "provider": "auto", "speedWpm": 165 },
+  "budget": { "currency": "EUR", "monthlyLimit": 30, "perVideoLimit": 1.5, "prices": { "elevenlabsPer1kChars": 0.30, "anthropicPerVideo": 0.15, "renderPerVideo": 0 } },
+  "qa": { "duplicateThreshold": 0.55, "requireSourcesPerClaim": 1, "requireVerifiedSources": true, "allowedLicenses": ["eigen", "generiert", "CC0", "CC-BY-4.0", "lizenziert"] },
+  "hashtags": { "base": ["#energie", "#lernenmittiktok"], "max": 5 }
+}
