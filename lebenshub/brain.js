@@ -6,7 +6,7 @@
 const BR_TYPES = { know: ['Wissen', '#7c5cff'], doc: ['Dokument', '#2f8fdd'], item: ['Eintrag', '#16a085'], rt: ['Routine', '#e67e22'], pos: ['Depot', '#c0392b'], topic: ['Thema', '#8a8f98'] };
 const BR_STOP = new Set('aber alle allem allen alles also auch beim bitte dann damit dass dein deine diese dieser dieses doch eine einem einen einer eines etwa euro für gegen haben hatte heute immer jede jeden jeder jedes kann keine machen mehr meine meinem meinen meiner mich mit nach nicht noch oder ohne schon sehr seit sein sich sind soll über unter viel vom von vor wann warum weil wenn werden wieder will wird woche zum zur zwischen zusammenfassung skript notiz eintrag termin prüfen offen erledigt'.split(' '));
 let brSel = null, brBusy = false, brQ = '', brAllIns = false;
-function brain() { S.brain = Object.assign({ links: [], insights: [], topics: {}, questions: [], grown: '' }, S.brain || {}); return S.brain; }
+function brain() { S.brain = Object.assign({ links: [], insights: [], topics: {}, questions: [], facts: [], grown: '' }, S.brain || {}); return S.brain; }
 const brWords = s => Array.from(new Set(String(s || '').toLowerCase().replace(/[^a-zäöüß0-9 -]/g, ' ').split(/[\s-]+/).filter(w => w.length >= 5 && !BR_STOP.has(w) && !/^\d+$/.test(w))));
 function brNodes() {
   const N = [];
@@ -79,6 +79,7 @@ function brainView() {
     ${sel ? `<div class="br-sel"><b>${esc(sel.label)}</b> <span class="chip d">${BR_TYPES[sel.type][0]}</span>${sel.type !== 'topic' ? ` <button class="chip" data-act="bopen" data-id="${esc(sel.id)}">öffnen</button>` : ''} <button class="chip d" data-act="bnode" data-id="">✕</button>
       ${conn.map(c => `<div class="row"><button class="t" data-act="bnode" data-id="${esc(c.n.id)}">${esc(c.n.label)}<small>${esc(BR_TYPES[c.n.type][0])} · ${esc(c.why || '')}</small></button></div>`).join('') || '<div class="hint">Noch keine Verbindungen.</div>'}</div>` : '<div class="hint">Punkt antippen → Verbindungen sehen und öffnen.</div>'}
     ${brInsights(G, B, sel)}
+    ${(B.facts || []).length ? `<h3 class="br-h">Gemerkt<small> ${B.facts.length}</small></h3>${B.facts.slice(0, brAllIns ? 30 : 5).map(f => `<div class="br-ins br-fact"><span class="chip d">${esc(f.kind || 'Fakt')}</span> ${esc(f.text)} <button class="chip d" data-act="bfactdel" data-id="${esc(f.id)}" aria-label="Vergessen">✕</button></div>`).join('')}` : ''}
     ${B.questions.length ? `<h3 class="br-h">Offene Fragen</h3>${B.questions.slice(0, 4).map(x => `<button class="br-q" data-act="bask" data-v="${esc(x)}">❓ ${esc(x)}</button>`).join('')}` : ''}
     <div class="btns">${ART.sample || (typeof getKey === 'function' && getKey()) ? `<button class="btn" data-act="bgrow" ${brBusy ? 'disabled' : ''}>${brBusy ? 'Gehirn denkt …' : '🧠 Gehirn wachsen lassen'}</button>` : ''}<button class="btn ghost" data-act="bask" data-v="">Gehirn fragen</button></div>
     <div class="hint">${B.grown ? 'Zuletzt gewachsen: ' + esc(H.fd(B.grown.slice(0, 10))) + ' · ' : ''}Wächst von selbst alle 3 Tage beim Öffnen und mit jedem neuen Dokument, Wissen oder Eintrag.</div></section>`;
@@ -104,7 +105,7 @@ async function brainGrow(silent) {
   try {
     const list = items.slice(0, 260).map(n => [n.id, BR_TYPES[n.type][0], n.label.slice(0, 90), n.tags.slice(0, 5).join(',')]);
     const B = brain();
-    const out = await askJson(`Du bist das „Gehirn“ meines Lebenshubs. Verknüpfe meine Daten sinnvoll über Bereiche hinweg (Uni-Wissen, Arbeit, Finanzen/Depot, Gesundheit, Projekte, Ideen). Knoten [id, Art, Titel, Themen]:\n${JSON.stringify(list)}\nBereits gefundene Erkenntnisse: ${JSON.stringify(B.insights.slice(0, 10).map(i => i.text))}\nAntworte nur mit JSON {"topics":{"<id>":["Thema",…]},"links":[{"a":"<id>","b":"<id>","why":"kurzer Grund"}],"insights":[{"text":"1–2 Sätze: Zusammenhang, Chance oder Empfehlung","refs":["<id>"]}],"questions":["Frage, die mein Wissen weiterbringt"]}. Regeln: nur vorhandene ids; Themen kurz (1–2 Wörter), einheitlich, höchstens 3 pro Knoten, bevorzugt bereichsübergreifend; 5–25 neue, nicht offensichtliche Verknüpfungen; 3–5 neue Erkenntnisse (nichts wiederholen); 2–4 Fragen; nichts erfinden, was nicht aus den Titeln hervorgeht.`);
+    const out = await askJson(`Du bist das „Gehirn“ meines Lebenshubs. Verknüpfe meine Daten sinnvoll über Bereiche hinweg (Uni-Wissen, Arbeit, Finanzen/Depot, Gesundheit, Projekte, Ideen). Knoten [id, Art, Titel, Themen]:\n${JSON.stringify(list)}\nBereits gefundene Erkenntnisse: ${JSON.stringify(B.insights.slice(0, 10).map(i => i.text))}\nGemerkte Entscheidungen, Ziele und Fakten: ${JSON.stringify((B.facts || []).slice(0, 20).map(f => f.kind + ': ' + f.text))}\nAntworte nur mit JSON {"topics":{"<id>":["Thema",…]},"links":[{"a":"<id>","b":"<id>","why":"kurzer Grund"}],"insights":[{"text":"1–2 Sätze: Zusammenhang, Chance oder Empfehlung","refs":["<id>"]}],"questions":["Frage, die mein Wissen weiterbringt"]}. Regeln: nur vorhandene ids; Themen kurz (1–2 Wörter), einheitlich, höchstens 3 pro Knoten, bevorzugt bereichsübergreifend; 5–25 neue, nicht offensichtliche Verknüpfungen; 3–5 neue Erkenntnisse (nichts wiederholen); 2–4 Fragen; nichts erfinden, was nicht aus den Titeln hervorgeht.`);
     const ids = new Set(items.map(n => n.id)); let nl = 0, ni = 0;
     if (out && out.topics && typeof out.topics === 'object') Object.entries(out.topics).forEach(([id, ts]) => { if (ids.has(id) && Array.isArray(ts)) B.topics[id] = Array.from(new Set((B.topics[id] || []).concat(ts.map(String).map(s => s.trim()).filter(Boolean)))).slice(0, 5); });
     (Array.isArray(out && out.links) ? out.links : []).forEach(l => { if (l && ids.has(l.a) && ids.has(l.b) && l.a !== l.b && !B.links.some(x => (x.a === l.a && x.b === l.b) || (x.a === l.b && x.b === l.a))) { B.links.push({ a: l.a, b: l.b, why: String(l.why || '').slice(0, 120) }); nl++; } });
@@ -138,6 +139,7 @@ function brainAct(act, b) {
   if (act === 'bopen') { brOpen(b.dataset.id); return true; }
   if (act === 'bgrow') { brainGrow(false); return true; }
   if (act === 'bins') { brAllIns = !brAllIns; render(); return true; }
+  if (act === 'bfactdel') { const B = brain(); B.facts = (B.facts || []).filter(f => f.id !== b.dataset.id); save('Vergessen'); return true; }
   if (act === 'bask') { TAB = 'chat'; chatDraft = b.dataset.v || 'Was weiß mein Gehirn über '; render(); const i = $('chatIn'); if (i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } return true; }
   return false;
 }

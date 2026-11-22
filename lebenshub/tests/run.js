@@ -157,6 +157,59 @@ async function page(browser, url, seed, extra) {
       ok(errs.length === 0, 'keine JavaScript-Fehler', errs.slice(0, 3));
       await ctx.close();
     }
+    console.log('10) Odi: Wissenssuche, Gedächtnis, Sprache');
+    {
+      const fx = JSON.parse(JSON.stringify(FIX));
+      fx.know.push({ id: 'kh', title: 'Heideck · Speicherauslegung und Betreibermodelle', kind: 'Notiz', url: 'https://example.org/doc', source: 'Test', summary: 'Gemeinsamer Speicher 200–300 kWh technisch sinnvoll; Mehrzweckspeicher 1 MW kostet 530–770 Tsd. Euro.', points: ['Energiemanagement-Dienst zuerst'], tags: ['Heideck', 'BESS'], status: 'Gelesen', added: '2026-11-21' },
+        { id: 'km', title: 'Mikroökonomie – Zusammenfassung', kind: 'Notiz', url: '', source: 'Uni', summary: 'Angebot, Nachfrage, Preisbildung.', points: [], tags: ['Uni'], status: 'Gelesen', added: '2020-01-01' });
+      const { p, errs, ctx } = await page(browser, url, fx);
+      const r = await p.evaluate(() => {
+        const hits = hubSearch('Was kostet der Speicher in Heideck?', 5), rel = relevantContext('Was kostet der Speicher in Heideck?');
+        const none = hubSearch('xyzqwv blubb', 5).length;
+        return { first: hits[0] && hits[0].title, n: hits.length, rel: rel.text.includes('<relevant') && rel.text.includes('530'), refs: rel.refs.length, none,
+          tierA: chooseTier('Bewerte bitte, welche Förderung für mein Startup sinnvoll ist', false), tierV: chooseTier('Bewerte bitte, welche Förderung für mein Startup sinnvoll ist', true), tierQ: chooseTier('Hallo', true) };
+      });
+      ok(r.first && r.first.startsWith('Heideck') && r.rel && r.none === 0, 'Wissenssuche findet den passenden Eintrag zuerst und liefert Kontext', r);
+      ok(r.tierA === 'complex' && r.tierV === 'default' && r.tierQ === 'quick', 'Modellstufe passt sich der Frage an', r);
+      const t = await p.evaluate(() => ({
+        a: ttsText('Kosten: 1.400 € bzw. 11 % am 2026-11-22, z. B. 2 MW / 4 MWh – siehe https://x.de 🚀'),
+        b: spokenPart('Erster Satz. Zweiter Satz! Dritter?\n\nDetails, die nicht vorgelesen werden.'),
+        c: spokenPart('- Punkt eins ohne Absatz')
+      }));
+      ok(/1\.400 Euro/.test(t.a) && /11 Prozent/.test(t.a) && /22\. November 2026/.test(t.a) && /zum Beispiel/.test(t.a) && /Megawatt/.test(t.a) && !/https|🚀|€|%/.test(t.a), 'Sprachtext: Euro, Prozent, Datum, Abkürzungen, keine Links/Emojis', t.a);
+      ok(t.b === 'Erster Satz. Zweiter Satz! Dritter?' && t.c === 'Punkt eins ohne Absatz', 'Vorgelesen wird nur die Kurzantwort', t);
+      const m = await p.evaluate(() => {
+        runTool('remember', { text: 'Ich will bei Heideck Initiator und Betriebsführer werden.', kind: 'Entscheidung' });
+        runTool('remember', { text: 'Ich will bei Heideck Initiator und Betriebsführer werden.', kind: 'Entscheidung' });
+        const f = S.brain.facts.length, snap = factsSnapshot().includes('Betriebsführer'), found = hubSearch('Heideck Betriebsführer Entscheidung', 3).some(h => h.type === 'Gemerkt');
+        TAB = 'files'; render(); const shown = !!document.querySelector('.br-fact');
+        return { f, snap, found, shown, inHub: hubSnapshot().includes('Gemerkt') };
+      });
+      ok(m.f === 1 && m.snap && m.found && m.shown && m.inHub, 'Gedächtnis: speichert ohne Dubletten, durchsuchbar, im Gehirn sichtbar, im Kontext', m);
+      const v = await p.evaluate(async () => {
+        window.__spoken = []; window.__cap = null;
+        speakOnce = txt => { window.__spoken.push(txt); return Promise.resolve(); };
+        const full = 'Dein Speicher in Heideck kostet etwa 530 bis 770 Tausend Euro. Zuerst kommt der Energiemanagement-Dienst.\n\nDetails: Rechnung mit 1 MW / 2 MWh.';
+        const fake = async (input, opts) => { window.__cap = { input, tier: opts.modelTier, tools: (opts.tools || []).map(x => x.name) };
+          opts.onText({ text: 'Dein Speicher in Heideck kostet etwa 530 bis 770 Tausend Euro.' }); opts.onText({ text: full });
+          await opts.tools.find(x => x.name === 'remember').execute({ text: 'Heideck-Speicher erst nach Gate 2 bauen.', kind: 'Entscheidung' });
+          return { text: full, truncated: false }; };
+        fake.json = ART.sample.json; fake.limits = ART.sample.limits; ART.sample = fake;
+        viaVoice = true; TAB = 'chat'; render();
+        await sendChat('Was kostet der Speicher in Heideck und was mache ich zuerst?');
+        await new Promise(r => setTimeout(r, 300));
+        const last = CHAT[CHAT.length - 1], userMsg = window.__cap.input[window.__cap.input.length - 1].content;
+        return { rel: userMsg.includes('<relevant') && userMsg.includes('Heideck · Speicherauslegung'), voiceHint: userMsg.includes('erste Absatz wird vorgelesen'), tier: window.__cap.tier,
+          tools: window.__cap.tools.includes('remember') && window.__cap.tools.includes('search_hub'), spoken: window.__spoken, refs: last.refs || [], fact: S.brain.facts.some(f => /Gate 2/.test(f.text)), act: (last.actions || []).some(a => /Gemerkt/.test(a)) };
+      });
+      ok(v.rel && v.voiceHint && v.tools, 'Anfrage enthält passenden Hub-Kontext, Sprachhinweis und Such-/Gedächtnis-Werkzeuge', v);
+      ok(v.spoken.length >= 2 && v.spoken.join(' ').includes('530 bis 770 Tausend Euro') && !v.spoken.join(' ').includes('Details') && new Set(v.spoken).size === v.spoken.length, 'Sprache: liest satzweise schon beim Schreiben, keine Details, keine Wiederholung', v.spoken);
+      ok(v.fact && v.act && v.refs.length > 0, 'Gemerktes und Quellen werden am Gespräch angezeigt', v);
+      const sg = await p.evaluate(() => { CHAT = []; TAB = 'chat'; render(); return document.querySelectorAll('[data-act=csugg]').length; });
+      ok(sg >= 4, 'leerer Chat zeigt Fragevorschläge', sg);
+      ok(errs.filter(e => !/Vorlesen|speech/i.test(e)).length === 0, 'keine JavaScript-Fehler', errs.slice(0, 3));
+      await ctx.close();
+    }
   } finally { await browser.close(); server.close(); }
   console.log(failed ? '\n' + failed + ' Test(s) fehlgeschlagen.' : '\nAlle Tests bestanden.');
   process.exit(failed ? 1 : 0);

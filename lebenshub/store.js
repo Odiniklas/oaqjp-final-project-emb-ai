@@ -206,7 +206,7 @@ function artSettingsCard() {
     <div class="kv"><span>Daten</span><span>${ART.db ? 'bei Claude gespeichert, auf allen Geräten gleich' : 'nur auf diesem Gerät'}</span></div>
     <div class="kv"><span>Assistent &amp; Analyse</span><span>${ART.sample ? 'über dein Claude-Abo' : 'nicht verfügbar'}</span></div>
     <div class="kv"><span>Claude-Jobs</span><span>${ART.db ? 'Ergebnisse kommen automatisch' : '—'}</span></div>
-    ${ART.sample ? `<label class="f" style="margin-top:8px">Assistent<select id="tierSel"><option value="default" ${tier === 'default' ? 'selected' : ''}>Gründlich</option><option value="quick" ${tier === 'quick' ? 'selected' : ''}>Schnell (schont dein Nutzungslimit)</option></select></label>` : ''}
+    ${ART.sample ? `<label class="f" style="margin-top:8px">Assistent<select id="tierSel"><option value="default" ${tier === 'default' || tier === 'auto' ? 'selected' : ''}>Automatisch (empfohlen: schnell bei Kleinem, gründlich bei Analysen)</option><option value="complex" ${tier === 'complex' ? 'selected' : ''}>Immer sehr gründlich</option><option value="quick" ${tier === 'quick' ? 'selected' : ''}>Immer schnell (schont dein Nutzungslimit)</option></select></label>` : ''}
     <div class="hint" style="margin-top:8px">Erinnerungen: Exportiere die Kalenderdatei unten – dein iPhone-Kalender erinnert dich dann. Ergebnisse der Claude-Jobs kommen zusätzlich als Mitteilung der Claude-App.</div></section>`;
 }
-document.addEventListener('change', e => { if (e.target.id === 'tierSel') { setPref('tier', e.target.value); toast(e.target.value === 'quick' ? 'Assistent: schnell' : 'Assistent: gründlich'); } });
+document.addEventListener('change', e => { if (e.target.id === 'tierSel') { setPref('tier', e.target.value); toast(e.target.value === 'quick' ? 'Assistent: schnell' : e.target.value === 'complex' ? 'Assistent: sehr gründlich' : 'Assistent: automatisch'); } });

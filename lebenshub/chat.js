@@ -28,6 +28,11 @@ const SYS = `Du bist der persönliche Assistent im „Lebenshub“ (Termine, Rou
 - Wissen (Paper, Artikel, Studien, Videos, Notizen) mit add_knowledge speichern – mit Zusammenfassung, Kernaussagen und Themen. Fragen zum Wissen: passende Einträge mit get_knowledge lesen und mit Quelle antworten.
 - Nichts erfinden. Datum als JJJJ-MM-TT. Keine IBAN, Konto-, Depot-, Versicherungs- oder Kundennummern speichern.
 - LifeOS-Regeln: Kennzeichne Aussagen als belegt, Nutzerbericht, Annahme, Hypothese oder offen. Ein Gespräch, Interesse oder versendeter Lebenslauf ist keine Zusage, Stelle, Betreuung oder Partnerschaft (Kontaktstufen IDEA → CONTACTED → DISCUSSED → NEXT_STEP_AGREED → FORMAL_OFFER → CONTRACT_SIGNED). Fehlen Zahlen, rechne mit Szenarien statt Punktwerten. Projektwissen steht im Wissen mit Tag „LifeOS“ (get_knowledge). Enthält eine Nachricht einen Prompt aus der Prompt-Bibliothek, befolge ihn und schreibe erst nach „übernehmen“ in den Hub.
+- Fragen beantworten: Nutze zuerst <relevant> (die passendsten Stellen aus dem Hub) und die Hub-Daten; reicht das nicht, suche mit search_hub oder lies Details mit get_knowledge. Nenne die Quelle kurz in Klammern (Titel des Wissenseintrags, Dokuments oder Eintrags; bei Docs den Link). Trenne „laut deinem Hub“ von allgemeinem Wissen. Steht etwas nicht im Hub, sag das offen und schlage vor, wie es ergänzt wird – keine erfundenen Zahlen, Namen, Termine oder Quellen.
+- Projekte (Heideck, FlexGrid, Batteriespeicher, Förderung, Promotion, Gesamtkonzept, Aktienradar): Antworte mit den konkreten Zahlen, Entscheidungen und nächsten Schritten aus den Wissenseinträgen; verknüpfe Bereiche (z. B. Förderung ↔ Gründung ↔ Promotion).
+- Rechnen und Abwägen: Ergebnis zuerst, dann Rechenweg und Annahmen; bei Unsicherheit Szenarien.
+- Gedächtnis: Nennt der Nutzer eine Entscheidung, ein Ziel, eine Vorliebe, eine Frist oder eine neue Tatsache über sich oder seine Projekte, speichere sie mit remember (ein klarer Satz; Veraltetes mit replaces ersetzen). Neue bereichsübergreifende Zusammenhänge mit add_insight, Bezüge mit link_items. Höchstens 2 solche Aktionen pro Antwort, nichts Triviales.
+- Antwortform: Erster Absatz = die Kernantwort in 1–3 klaren Sätzen (wird bei Sprache vorgelesen). Danach bei Bedarf eine Leerzeile und Details, Listen oder Rechenweg.
 - Nur bei echter Mehrdeutigkeit kurz nachfragen.
 Danach in 1–2 Sätzen sagen, was du geändert hast; wenn sinnvoll ein konkreter nächster Schritt. Fragen zum Hub aus den Hub-Daten beantworten. Keine Anlage-, Rechts- oder medizinische Beratung im engeren Sinn; bei gesundheitlichen Warnzeichen zum Arzt raten.`;
 
@@ -55,7 +60,7 @@ function tools() {
     { name: 'store_attachment', description: 'Angehängte Dateien dieser Nachricht unter „Dokumente“ ablegen.',
       input_schema: { type: 'object', additionalProperties: false, required: ['area', 'title', 'summary'], properties: {
         area: { type: 'string', enum: ['work', 'money', 'health'] }, title: str('Titel'), summary: str('2–4 Sätze') } } }
-  ].concat(typeof FIN_TOOLS !== 'undefined' ? FIN_TOOLS : [], typeof KNOW_TOOLS !== 'undefined' ? KNOW_TOOLS : [], typeof HEALTH_TOOLS !== 'undefined' ? HEALTH_TOOLS : [], typeof BRAIN_TOOLS !== 'undefined' ? BRAIN_TOOLS : [], typeof LIFE_TOOLS !== 'undefined' ? LIFE_TOOLS : [], typeof TT_TOOLS !== 'undefined' ? TT_TOOLS : [], typeof GOAL_TOOLS !== 'undefined' ? GOAL_TOOLS : [], typeof PENS_TOOLS !== 'undefined' ? PENS_TOOLS : [], typeof RADAR_TOOLS !== 'undefined' ? RADAR_TOOLS : []);
+  ].concat(typeof FIN_TOOLS !== 'undefined' ? FIN_TOOLS : [], typeof KNOW_TOOLS !== 'undefined' ? KNOW_TOOLS : [], typeof HEALTH_TOOLS !== 'undefined' ? HEALTH_TOOLS : [], typeof BRAIN_TOOLS !== 'undefined' ? BRAIN_TOOLS : [], typeof LIFE_TOOLS !== 'undefined' ? LIFE_TOOLS : [], typeof TT_TOOLS !== 'undefined' ? TT_TOOLS : [], typeof GOAL_TOOLS !== 'undefined' ? GOAL_TOOLS : [], typeof PENS_TOOLS !== 'undefined' ? PENS_TOOLS : [], typeof RADAR_TOOLS !== 'undefined' ? RADAR_TOOLS : [], typeof MIND_TOOLS !== 'undefined' ? MIND_TOOLS : []);
 }
 
 /* Kompakte Hub-Daten (kurze Schlüssel = weniger Tokens) */
@@ -75,11 +80,12 @@ function hubSnapshot() {
     '\nLeben (Netto, Fixkosten/Monat, Verträge [id, Bereich, Name, Anbieter, Betrag, Rhythmus, Status, Frist, Kündigung]): ' + (typeof lifeSnapshotText === 'function' ? lifeSnapshotText() : '{}') +
     '\nTikTok-Sammlung (Themen, Beispiele): ' + (typeof ttSnapshotText === 'function' ? ttSnapshotText() : '{}') +
     '\nKalender nächste 14 Tage inkl. Apple-Kalender: ' + (typeof calSnapshotText === 'function' ? calSnapshotText() : '{}') +
+    '\nGemerkt [id, Art, Inhalt, Datum]: ' + (typeof factsSnapshot === 'function' ? factsSnapshot() : '[]') +
     '\nGehirn (Erkenntnisse, Verknüpfungen, offene Fragen): ' + (typeof brainSnapshotText === 'function' ? brainSnapshotText() : '{}') + '\n</hub>';
 }
 
 function runTool(name, x, turn) {
-  const fr = (typeof finTool === 'function' ? finTool(name, x || {}) : null) || (typeof knowTool === 'function' ? knowTool(name, x || {}) : null) || (typeof healthTool === 'function' ? healthTool(name, x || {}) : null) || (typeof weatherTool === 'function' ? weatherTool(name, x || {}) : null) || (typeof brainTool === 'function' ? brainTool(name, x || {}) : null) || (typeof lifeTool === 'function' ? lifeTool(name, x || {}) : null) || (typeof ttTool === 'function' ? ttTool(name, x || {}) : null) || (typeof goalTool === 'function' ? goalTool(name, x || {}) : null) || (typeof pensTool === 'function' ? pensTool(name, x || {}) : null) || (typeof radarTool === 'function' ? radarTool(name, x || {}) : null);
+  const fr = (typeof mindTool === 'function' ? mindTool(name, x || {}) : null) || (typeof finTool === 'function' ? finTool(name, x || {}) : null) || (typeof knowTool === 'function' ? knowTool(name, x || {}) : null) || (typeof healthTool === 'function' ? healthTool(name, x || {}) : null) || (typeof weatherTool === 'function' ? weatherTool(name, x || {}) : null) || (typeof brainTool === 'function' ? brainTool(name, x || {}) : null) || (typeof lifeTool === 'function' ? lifeTool(name, x || {}) : null) || (typeof ttTool === 'function' ? ttTool(name, x || {}) : null) || (typeof goalTool === 'function' ? goalTool(name, x || {}) : null) || (typeof pensTool === 'function' ? pensTool(name, x || {}) : null) || (typeof radarTool === 'function' ? radarTool(name, x || {}) : null);
   if (fr) return fr;
   const L = k => { if (!S.lists[k]) throw new Error('Unbekannte Liste ' + k); return S.lists[k]; };
   const stIdx = (k, s) => { const c = C.find(y => y.k === k); if (!c.st || !s) return 0; const i = c.st.findIndex(v => v.toLowerCase() === String(s).toLowerCase()); return i < 0 ? 0 : i; };
@@ -149,16 +155,22 @@ function history() {
   return h;
 }
 
-function finishTurn(reply, actions, snap, err, cost) {
+function isVoiceTurn() { return viaVoice || talkMode || location.hash === '#odi'; }
+function finishTurn(reply, actions, snap, err, cost, refs) {
   chatBusy = false;
   undoSnap = actions.length ? snap : null;
-  CHAT.push({ role: 'assistant', text: reply || (actions.length ? 'Erledigt.' : '…'), actions, err, cost, at: Date.now() });
+  CHAT.push({ role: 'assistant', text: reply || (actions.length ? 'Erledigt.' : '…'), actions, err, cost, refs: refs && refs.length ? refs.slice(0, 5) : undefined, at: Date.now() });
   saveChat();
   if (actions.length) save(); else render();
   scrollChat();
-  if ((speakOn || viaVoice || talkMode) && reply && !err) speak(reply, talkMode);
+  const wantSpeech = (speakOn || viaVoice || talkMode) && reply && !err;
+  if (wantSpeech && typeof spokenPart === 'function') {
+    const sp = spokenPart(reply), rest = streamSaid && sp.startsWith(streamSaid.trim()) ? sp.slice(streamSaid.trim().length) : (streamSaid ? '' : sp);
+    const q = rest.trim() ? enqueueSpeech(rest) : speechQ; streamSpoken = 0; streamSaid = '';
+    q.then(() => { if (talkMode) setTimeout(listen, 350); });
+  } else if (wantSpeech) speak(reply, talkMode);
+  else if (talkMode && err) { talkMode = false; render(); }
   if (typeof odiRefocus === 'function') odiRefocus();
-  else if (talkMode && !err) setTimeout(listen, 400);
 }
 
 async function sendChat(text) {
@@ -175,14 +187,15 @@ async function sendChat(text) {
     const { client, A } = await apiClient();
     const content = [];
     for (const f of turn.files) content.push(await toBlock(f));
-    content.push({ type: 'text', text: hubSnapshot() + '\n\n' + (text || 'Bitte auswerten und in den Hub übernehmen.') +
-      (viaVoice || talkMode || location.hash === '#odi' ? '\n\n(Per Sprache – Antwort wird vorgelesen: höchstens 2 kurze Sätze, keine Aufzählungen.)' : '') });
+    const rel = typeof relevantContext === 'function' ? relevantContext(text) : { text: '', refs: [] }; turn.refs = rel.refs;
+    content.push({ type: 'text', text: hubSnapshot() + rel.text + '\n\n' + (text || 'Bitte auswerten und in den Hub übernehmen.') +
+      (isVoiceTurn() ? '\n\n(Per Sprache: Der erste Absatz wird vorgelesen – 1–3 kurze, gut sprechbare Sätze ohne Abkürzungen, Symbole oder Links. Details danach als Text.)' : '') });
     const msgs = history().concat([{ role: 'user', content }]);
     for (let i = 0; i < 8; i++) {
       let res;
       try {
         res = await client.beta.messages.create({ ...baseParams(), max_tokens: 4000, cache_control: { type: 'ephemeral' },
-          output_config: { effort: 'low' }, system: [{ type: 'text', text: sysText(), cache_control: { type: 'ephemeral' } }], tools: tools(), messages: msgs });
+          output_config: { effort: typeof chooseEffort === 'function' ? chooseEffort(text, isVoiceTurn()) : 'low' }, system: [{ type: 'text', text: sysText(), cache_control: { type: 'ephemeral' } }], tools: tools(), messages: msgs });
       } catch (e) { throw new Error(errText(e, A)); }
       cost += track(res);
       msgs.push({ role: 'assistant', content: res.content });
@@ -200,7 +213,7 @@ async function sendChat(text) {
     if (turn.files.length && !turn.stored) actions.push('📎 ' + turn.files.length + ' Datei(en) unter Arbeit → Dokumente abgelegt');
   } catch (e) { reply = e.message || String(e); err = true; }
   viaVoice = false;
-  finishTurn(reply, actions, snap, err, cost);
+  finishTurn(reply, actions, snap, err, cost, turn.refs);
 }
 
 /* ---------- Im Claude-Artefakt: über das Abo des Nutzers (sample) mit Seiten-Werkzeugen ---------- */
@@ -218,7 +231,7 @@ const TOOL_GROUPS = [
   [/tiktok/i, ['add_tiktok', 'tiktok_update']],
   [/zusammenhang|erkenntnis|verknüpf|gehirn/i, ['add_insight', 'link_items']],
 ];
-const TOOL_CORE = ['add_entry', 'update_entry', 'add_routine', 'complete_routine', 'add_knowledge', 'get_knowledge', 'set_contract', 'add_meal', 'set_health_day', 'set_position', 'set_prices', 'add_tiktok', 'add_insight'];
+const TOOL_CORE = ['search_hub', 'remember', 'add_entry', 'update_entry', 'add_routine', 'complete_routine', 'add_knowledge', 'get_knowledge', 'set_contract', 'add_meal', 'set_health_day', 'set_position', 'set_prices', 'add_tiktok', 'add_insight'];
 function pickTools(text, max, hasFiles) {
   const all = tools(), want = [];
   const add = n => { if (!want.includes(n) && all.some(t => t.name === n)) want.push(n); };
@@ -234,7 +247,7 @@ async function sendArtJson(turns, images, turn, actions) {
   const last = turns[turns.length - 1];
   const prompt = turns.slice(0, -1).map(m => (m.role === 'user' ? 'Nutzer: ' : 'Assistent: ') + m.content).join('\n\n') + '\n\nNutzer: ' + last.content +
     '\n\nAntworte NUR mit JSON {"reply":"deine Antwort an mich","actions":[{"tool":"<name>", …Argumente}]}. Führe meinen Wunsch über actions aus, wenn etwas eingetragen/geändert werden soll. Verfügbare Werkzeuge: ' + spec;
-  const out = await ART.sample.json(prompt, Object.assign({ modelTier: pref('tier', 'default'), effort: 'low', cache: false }, images.length && ART.imgMax ? { images: images.slice(0, ART.imgMax) } : {}));
+  const out = await ART.sample.json(prompt, Object.assign({ modelTier: pref('tier', 'default') === 'auto' ? 'default' : pref('tier', 'default'), cache: false }, images.length && ART.imgMax ? { images: images.slice(0, ART.imgMax) } : {}));
   (Array.isArray(out && out.actions) ? out.actions : []).slice(0, 40).forEach(a => {
     if (!a || !a.tool) return;
     try { actions.push(runTool(String(a.tool), a, turn).label); } catch (e) { actions.push('⚠︎ ' + a.tool + ': ' + e.message); }
@@ -259,17 +272,20 @@ async function sendArt(text) {
       catch (e) { extra += '\n[Anhang „' + f.name + '“ konnte nicht gelesen werden: ' + e.message + ']'; }
     }
     if (images.length) extra += '\n[' + Math.min(images.length, ART.imgMax) + ' Bild(er) angehängt]';
+    const rel = typeof relevantContext === 'function' ? relevantContext(text) : { text: '', refs: [] }; turn.refs = rel.refs; extra = rel.text + extra;
+    const voiceTurn = isVoiceTurn(), tier = pref('tier', 'auto') === 'auto' || pref('tier', 'auto') === 'default' ? (typeof chooseTier === 'function' ? chooseTier(text, voiceTurn) : 'default') : pref('tier', 'default');
+    if (voiceTurn && typeof stopSpeech === 'function') stopSpeech();
     const turns = [{ role: 'user', content: sysText() + '\nDie Werkzeuge sind Funktionen dieser App; rufe sie direkt auf.' }].concat(history(),
       [{ role: 'user', content: hubSnapshot() + extra + '\n\n' + (text || 'Bitte auswerten und in den Hub übernehmen.') +
-        (viaVoice || talkMode || location.hash === '#odi' ? '\n\n(Per Sprache – Antwort wird vorgelesen: höchstens 2 kurze Sätze, keine Aufzählungen.)' : '') }]);
+        (isVoiceTurn() ? '\n\n(Per Sprache: Der erste Absatz wird vorgelesen – 1–3 kurze, gut sprechbare Sätze ohne Abkürzungen, Symbole oder Links. Details danach als Text.)' : '') }]);
     chatCtl = new AbortController();
     if (!ART.toolMax) { reply = (await sendArtJson(turns, images, turn, actions)).trim(); throw { done: true }; }
     const res = await ART.sample(turns, {
-      cache: false, signal: chatCtl.signal, modelTier: pref('tier', 'default'), effort: 'low',
+      cache: false, signal: chatCtl.signal, modelTier: tier,
       ...(images.length && ART.imgMax ? { images: images.slice(0, ART.imgMax) } : {}),
       tools: pickTools(text + ' ' + (extra ? 'anhang' : ''), ART.toolMax, turn.files.length > 0).map(t => ({ name: t.name, description: t.description, inputSchema: t.input_schema,
         execute: inp => { const r = runTool(t.name, inp || {}, turn); actions.push(r.label); chatStream = chatStream || '…'; showStream(); return r.result; } })),
-      onText: ({ text: tx }) => { chatStream = tx; showStream(); }
+      onText: ({ text: tx }) => { chatStream = tx; showStream(); if (voiceTurn && typeof streamSpeak === 'function') streamSpeak(tx); }
     });
     reply = res.text.trim();
     for (const f of turn.files) { if (turn.stored && !f.failed) { try { await DB.put(f); } catch (e) { /* bleibt unter Arbeit */ } } }
@@ -281,7 +297,7 @@ async function sendArt(text) {
     } else { reply = (e && e.text) || sampleErr(e); err = !(e && e.text); }
   }
   chatCtl = null; chatStream = ''; viaVoice = false;
-  finishTurn(reply, actions, snap, err, 0);
+  finishTurn(reply, actions, snap, err, 0, turn.refs);
 }
 function showStream() { const el = $('stream'); if (el) { el.textContent = chatStream || 'Claude denkt nach …'; scrollChat(); } }
 
@@ -378,46 +394,38 @@ function unlockTts() { // iOS: Sprachausgabe muss einmal durch eine Berührung f
 }
 let ttsFail = false;
 function speak(t, thenListen) {
-  const txt = t.replace(/[*#_`>|]/g, '').replace(/\n+/g, '. ');
-  const viaArt = () => ART.tts.speak(txt.slice(0, 1900), { voice: 'rounded' }).then(() => { if (thenListen && talkMode) setTimeout(listen, 300); }).catch(() => {});
-  if (ART.tts && (ttsFail || (!odi().voice && !deVoices().length))) return viaArt();
-  try {
-    if (speechSynthesis.speaking || speechSynthesis.pending) speechSynthesis.cancel();
-    try { speechSynthesis.resume(); } catch (e) { /* egal */ }
-    const u = new SpeechSynthesisUtterance(txt.slice(0, 1200));
-    pickVoice(); u.lang = voice ? voice.lang : 'de-DE'; if (voice) u.voice = voice; u.rate = +odi().rate || 1; u.pitch = +odi().pitch || 1; u.volume = 1;
-    let started = false;
-    u.onstart = () => { started = true; if (ttsFail) { ttsFail = false; render(); } };
-    u.onend = () => { started = true; if (thenListen && talkMode) setTimeout(listen, 300); };
-    u.onerror = () => { if (!started) noTts(); };
-    speechSynthesis.speak(u);
-    setTimeout(() => { if (!started && !speechSynthesis.speaking) noTts(); }, 2500);
-  } catch (e) { noTts(); if (thenListen && talkMode) listen(); }
+  if (typeof enqueueSpeech === 'function') { stopSpeech(); enqueueSpeech(t).then(() => { if (thenListen && talkMode) setTimeout(listen, 300); }); return; }
+  try { const u = new SpeechSynthesisUtterance(String(t).slice(0, 1200)); u.lang = 'de-DE'; speechSynthesis.cancel(); speechSynthesis.speak(u); } catch (e) { noTts(); }
 }
 function noTts() {
   if (ART.tts) { ttsFail = true; return; }
   if (!ttsFail) { ttsFail = true; toast('Vorlesen ist in dieser Ansicht gesperrt – den Lebenshub in Safari öffnen (siehe ⚙︎ → Odi).'); if ($('odiVoice')) render(); }
 }
-let dictWired = false, srBlocked = false;
+let dictWired = false, srBlocked = false, hearing = '';
+function showHearing() { const el = $('hearing'); if (el) { el.textContent = hearing || 'Ich höre zu …'; scrollChat(); } }
 function listen() {
   if (ART.dictation) { // Claude-Diktat (Desktop/Chrome)
     const d = ART.dictation;
     if (!dictWired) {
       dictWired = true;
-      d.onFinal(({ text }) => { chatDraft = (chatDraft + text).replace(/^\s+/, ''); const i = $('chatIn'); if (i) i.value = chatDraft; });
+      d.onFinal(({ text }) => { chatDraft = (chatDraft + ' ' + text).replace(/^\s+/, ''); hearing = chatDraft; const i = $('chatIn'); if (i) i.value = chatDraft; showHearing(); });
+      if (typeof d.onPartial === 'function') d.onPartial(({ text }) => { hearing = (chatDraft + ' ' + text).trim(); showHearing(); });
       d.onState(({ state }) => { recog = state === 'idle' ? null : 'dict'; if (state === 'idle') { const t = chatDraft.trim(); render(); if (t) { viaVoice = true; sendChat(t); } else if (talkMode) { talkMode = false; render(); } } else render(); });
     }
     if (d.active()) { d.stop(); return; }
+    if (typeof stopSpeech === 'function') stopSpeech();
+    hearing = '';
     d.start({ language: 'de' }).catch(e => { if (e && e.code !== 'stopped') { talkMode = false; toast('Diktat nicht möglich – nutze das Mikrofon der Tastatur.'); render(); } });
     return;
   }
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR || srBlocked) { talkMode = false; toast('Tipp: Nutze das Mikrofon auf der iPhone-Tastatur zum Diktieren.'); render(); const i = $('chatIn'); if (i) i.focus(); return; }
   if (recog && recog !== 'dict') { recog.stop(); return; }
-  try { speechSynthesis.cancel(); } catch (e) { /* egal */ }
+  if (typeof stopSpeech === 'function') stopSpeech(); else try { speechSynthesis.cancel(); } catch (e) { /* egal */ }
+  hearing = '';
   recog = new SR(); recog.lang = 'de-DE'; recog.interimResults = true; recog.continuous = false;
   let finalText = '';
-  recog.onresult = e => { let s = ''; for (const r of e.results) s += r[0].transcript; finalText = s; const i = $('chatIn'); if (i) i.value = s; chatDraft = s; };
+  recog.onresult = e => { let s = ''; for (const r of e.results) s += r[0].transcript; finalText = s; hearing = s; const i = $('chatIn'); if (i) i.value = s; chatDraft = s; showHearing(); };
   recog.onend = () => { recog = null; if (finalText.trim()) { viaVoice = true; sendChat(finalText); } else { if (talkMode) { talkMode = false; toast('Gesprächsmodus beendet.'); } render(); } };
   recog.onerror = e => { recog = null; talkMode = false; if (e.error === 'not-allowed' || e.error === 'service-not-allowed' || e.error === 'audio-capture') { srBlocked = true; toast(ART.on ? 'Mikrofon ist in dieser Ansicht gesperrt – nutze das 🎤 der Tastatur (oder den Lebenshub in Safari öffnen).' : 'Mikrofon nicht erlaubt – in den iPhone-Einstellungen freigeben oder Tastatur-Diktat nutzen.'); const i = $('chatIn'); if (i) i.focus(); } render(); };
   try { recog.start(); } catch (e) { recog = null; }
@@ -445,7 +453,7 @@ function viewChat() {
       <button class="chip ${abo ? '' : 'd'}" data-act="cmode" data-v="${abo ? 'api' : 'abo'}">${abo ? 'Modus: Claude-Abo' : 'Modus: API'}</button>
       ${!abo ? `<button class="chip ${talkMode ? 'due' : 'd'}" data-act="ctalk">${talkMode ? '🎙 Gespräch läuft' : '🎙 Gespräch'}</button><button class="chip ${speakOn ? '' : 'd'}" data-act="ctts">${speakOn ? '🔊 an' : '🔈 aus'}</button>` : '<button class="chip d" data-act="cpaste">📋 Antwort einfügen</button>'}
       ${CHAT.length ? '<button class="chip d" data-act="cclear">Leeren</button>' : ''}</small></h2>
-    <div class="msgs" id="msgs">${msgs}${chatBusy ? '<div class="msg assistant"><div class="typing">Claude denkt nach …</div></div>' : ''}${recog ? '<div class="msg user"><div class="typing">Ich höre zu …</div></div>' : ''}</div>
+    <div class="msgs" id="msgs">${msgs}${chatBusy ? '<div class="msg assistant"><div class="typing">Claude denkt nach …</div></div>' : ''}${recog ? `<div class="msg user"><div class="typing" id="hearing">${esc(hearing || 'Ich höre zu …')}</div></div>` : ''}</div>
     ${chatFiles.length ? `<div class="hint">📎 ${chatFiles.map(f => esc(f.name)).join(', ')} <button class="chip d" data-act="cfclear">entfernen</button></div>` : ''}
     <div class="chatbar">${abo ? '' : '<button class="icon-btn" data-act="cattach" aria-label="Datei anhängen">＋</button>'}
       <textarea id="chatIn" rows="1" placeholder="${abo ? 'Frage/Auftrag …' : 'Schreiben …'}" ${chatBusy ? 'disabled' : ''}>${esc(chatDraft)}</textarea>
@@ -453,37 +461,40 @@ function viewChat() {
       <button class="btn" data-act="csend" ${chatBusy ? 'disabled' : ''}>${abo ? 'In Claude öffnen' : 'Senden'}</button></div></section>`;
 }
 function msgHtml(m, i) {
-  return `<div class="msg ${m.role}${m.err ? ' err' : ''}">${m.text ? `<div>${fmtText(m.text)}</div>` : ''}${m.files && m.files.length ? `<small>📎 ${m.files.map(esc).join(', ')}</small>` : ''}${m.actions && m.actions.length ? `<ul class="acts">${m.actions.map(a => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}${i === CHAT.length - 1 && undoSnap && !m.undone ? '<button class="chip" data-act="cundo">Rückgängig</button>' : ''}${m.undone ? '<small>rückgängig gemacht</small>' : ''}${m.role === 'assistant' && m.text && !m.err ? `<a class="chip d wa" href="https://wa.me/?text=${encodeURIComponent(m.text.slice(0, 1500))}" target="_blank" rel="noopener">WhatsApp</a>` : ''}</div>`;
+  return `<div class="msg ${m.role}${m.err ? ' err' : ''}">${m.text ? `<div>${fmtText(m.text)}</div>` : ''}${m.files && m.files.length ? `<small>📎 ${m.files.map(esc).join(', ')}</small>` : ''}${m.actions && m.actions.length ? `<ul class="acts">${m.actions.map(a => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}${i === CHAT.length - 1 && undoSnap && !m.undone ? '<button class="chip" data-act="cundo">Rückgängig</button>' : ''}${m.undone ? '<small>rückgängig gemacht</small>' : ''}${m.refs && m.refs.length ? `<small class="refs">📚 ${m.refs.map(esc).join(' · ')}</small>` : ''}${m.role === 'assistant' && m.text && !m.err ? `<a class="chip d wa" href="https://wa.me/?text=${encodeURIComponent(m.text.slice(0, 1500))}" target="_blank" rel="noopener">WhatsApp</a>` : ''}</div>`;
 }
 function viewChatArt() {
   const msgs = CHAT.filter(m => !m.local).map((m, i, a) => msgHtml(m, i === a.length - 1 ? CHAT.length - 1 : -1)).join('')
-    || '<div class="hint">Erzähl mir, was ansteht, oder häng ein Foto/PDF an – ich trage alles in deinen Hub ein. Zum Beispiel: „Dienstag 10 Uhr Physio wegen dem Knie“, „Depot steht bei 22.000 €“ oder „Was steht diese Woche an?“ Läuft über dein Claude-Abo.</div>';
+    || '<div class="hint">Frag mich alles zu deinem Hub – Projekte, Wissen, Finanzen, Gesundheit, Termine – oder erzähl mir, was ansteht. Ich suche die passenden Stellen selbst heraus, merke mir Entscheidungen und trage Neues ein. Läuft über dein Claude-Abo.</div>' + chatSuggest();
   const voice = true;
   return `<section class="card wide chat"><h2>${odi().on ? esc(odi().name) : 'Assistent'}<small class="chips">
       <button class="chip ${talkMode ? 'due' : 'd'}" data-act="ctalk">${talkMode ? '🎙 Gespräch läuft' : '🎙 Gespräch'}</button>
       <button class="chip ${speakOn ? '' : 'd'}" data-act="ctts">${speakOn ? '🔊 Vorlesen an' : '🔈 Vorlesen aus'}</button>
       ${CHAT.length ? '<button class="chip d" data-act="cclear">Leeren</button>' : ''}</small></h2>
-    ${typeof odiOrb === 'function' ? odiOrb() : ''}<div class="msgs" id="msgs">${msgs}${chatBusy ? `<div class="msg assistant"><div class="typing stream" id="stream">${esc(chatStream || 'Claude denkt nach …')}</div><button class="chip d" data-act="cstop">Stopp</button></div>` : ''}${recog ? '<div class="msg user"><div class="typing">Ich höre zu …</div></div>' : ''}</div>
+    ${typeof odiOrb === 'function' ? odiOrb() : ''}<div class="msgs" id="msgs">${msgs}${chatBusy ? `<div class="msg assistant"><div class="typing stream" id="stream">${esc(chatStream || 'Claude denkt nach …')}</div><button class="chip d" data-act="cstop">Stopp</button></div>` : ''}${recog ? `<div class="msg user"><div class="typing" id="hearing">${esc(hearing || 'Ich höre zu …')}</div></div>` : ''}</div>
     ${chatFiles.length ? `<div class="hint">📎 ${chatFiles.map(f => esc(f.name)).join(', ')} <button class="chip d" data-act="cfclear">entfernen</button></div>` : ''}
     <div class="chatbar"><button class="icon-btn" data-act="cattach" aria-label="Foto oder PDF anhängen">＋</button>
       <textarea id="chatIn" rows="1" placeholder="Schreiben …" ${chatBusy ? 'disabled' : ''}>${esc(chatDraft)}</textarea>
       ${voice ? `<button class="icon-btn ${recog ? 'on' : ''}" data-act="cmic" aria-label="Sprechen">🎤</button>` : ''}
       <button class="btn" data-act="csend" ${chatBusy ? 'disabled' : ''}>Senden</button></div></section>`;
 }
+const CHAT_SUGGEST = ['Was steht heute und diese Woche an?', 'Wo steht mein Heideck-Speicherprojekt und was ist der nächste Schritt?', 'Welche Förderung passt jetzt für meine Gründung?', 'Welche Aktien aus dem Radar sind gerade günstig?', 'Was hast du dir über mich gemerkt?', 'Fasse mein Gesamtkonzept in drei Sätzen zusammen.'];
+function chatSuggest() { return `<div class="chips sugg">${CHAT_SUGGEST.map(q => `<button class="chip d" data-act="csugg" data-v="${esc(q)}">${esc(q)}</button>`).join('')}</div>`; }
 function scrollChat() { requestAnimationFrame(() => { const m = $('msgs'); if (m) m.scrollTop = m.scrollHeight; }); }
 
 function chatAct(act, b) {
   switch (act) {
     case 'csend': { unlockTts(); const i = $('chatIn'); sendChat(i ? i.value : ''); return true; }
     case 'cmic': unlockTts(); listen(); return true;
-    case 'ctalk': unlockTts(); talkMode = !talkMode; if (talkMode) listen(); else { if (recog) recog.stop(); try { speechSynthesis.cancel(); } catch (e) { /* egal */ } render(); } return true;
+    case 'csugg': unlockTts(); sendChat(b.dataset.v); return true;
+    case 'ctalk': unlockTts(); talkMode = !talkMode; if (talkMode) listen(); else { if (recog && recog !== 'dict') recog.stop(); if (typeof stopSpeech === 'function') stopSpeech(); render(); } return true;
     case 'cattach': $('chatFile').click(); return true;
     case 'cfclear': chatFiles = []; render(); return true;
     case 'cundo': undoLast(); return true;
     case 'cpaste': pasteAbo(); return true;
     case 'cpaste2': TAB = 'chat'; render(); pasteAbo(); return true;
     case 'cmode': mode = b.dataset.v; setPref('mode', mode); render(); return true;
-    case 'ctts': unlockTts(); speakOn = !speakOn; setPref('tts', speakOn ? '1' : '0'); if (!speakOn) try { speechSynthesis.cancel(); } catch (e) { /* egal */ } render(); return true;
+    case 'ctts': unlockTts(); speakOn = !speakOn; setPref('tts', speakOn ? '1' : '0'); if (!speakOn && typeof stopSpeech === 'function') stopSpeech(); render(); return true;
     case 'cclear': askConfirm('Chatverlauf löschen? Deine Hub-Daten bleiben erhalten.', 'Löschen').then(ok => { if (ok) { CHAT = []; undoSnap = null; saveChat(); render(); } }); return true;
     case 'cstop': if (chatCtl) chatCtl.abort(); return true;
     case 'cproj': copyText(projectInstructions()).then(ok => toast(ok ? 'Projekt-Anweisung kopiert – in Claude unter Projekt → Anweisungen einfügen.' : 'Kopieren fehlgeschlagen')); return true;

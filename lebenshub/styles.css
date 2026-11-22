@@ -242,3 +242,8 @@ pre.prbody{white-space:pre-wrap;font-size:12px;max-height:40vh;overflow:auto;bac
 .radar .rad-up{font-size:11px;opacity:.8;white-space:nowrap}
 .radar .rad-in{color:#1f9d55;font-weight:600}
 .hint.warn{color:#b9770e}
+/* Odi: Quellen, Vorschläge, Gemerktes */
+.msg small.refs{display:block;margin-top:6px;font-size:11px;opacity:.7}
+.chips.sugg{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.chips.sugg .chip{white-space:normal;text-align:left}
+.br-fact .chip{margin-right:4px}
