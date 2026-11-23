@@ -1,0 +1,27 @@
+# Lebenshub: automatische Tests bei jeder Änderung (läuft auf GitHub, verbraucht keine Claude-Tokens)
+name: Lebenshub-Tests
+on:
+  push:
+    paths: ['lebenshub/**', '.github/workflows/lebenshub-tests.yml']
+  pull_request:
+    paths: ['lebenshub/**']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Playwright installieren
+        run: |
+          npm install --no-save --no-package-lock playwright@1.63.0
+          npx playwright install --with-deps chromium
+      - name: Syntax prüfen
+        run: for f in lebenshub/*.js; do node --check "$f"; done
+      - name: Tests ausführen
+        run: node lebenshub/tests/run.js
