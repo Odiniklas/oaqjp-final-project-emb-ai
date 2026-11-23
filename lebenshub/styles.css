@@ -305,3 +305,61 @@ body.kb{padding-bottom:calc(env(safe-area-inset-bottom,0px) + 12px)}
 .bw-all summary{cursor:pointer;font-size:13px;color:var(--mut);padding:8px 0}
 .pj-h{align-items:flex-start}.pj-t small{display:block}.pj-st{margin-top:6px}
 .pj-facts b{font-size:13px;font-weight:600;line-height:1.3;display:block}
+
+/* ===== Design 2026: Glas-Karten, Mint-Verlauf, schwebende dunkle Leiste ===== */
+:root{--bg:#eef4f2;--card:rgba(255,255,255,.72);--tx:#0f1a17;--mut:#5f6f6a;--bd:rgba(15,40,34,.08);--ac:#0f8a6c;--ac2:rgba(15,138,108,.10);--glass-bd:rgba(255,255,255,.75);--shadow:0 10px 30px -12px rgba(15,60,48,.22),0 2px 6px -2px rgba(15,60,48,.08);--rail:#101716;--railtx:#9fb3ad;--grad:radial-gradient(1200px 600px at 10% -10%,#d7f1e8 0%,transparent 60%),radial-gradient(900px 500px at 110% 10%,#e3ecfb 0%,transparent 55%),linear-gradient(180deg,#f3f8f6,#e9f1ee)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0b1110;--card:rgba(255,255,255,.055);--tx:#e9f2ef;--mut:#8fa39d;--bd:rgba(255,255,255,.08);--ac:#3fd5ae;--ac2:rgba(63,213,174,.12);--glass-bd:rgba(255,255,255,.09);--shadow:0 12px 34px -14px rgba(0,0,0,.7);--rail:#060a09;--railtx:#7d918b;--grad:radial-gradient(1000px 520px at 0% -10%,rgba(63,213,174,.16) 0%,transparent 60%),radial-gradient(800px 500px at 110% 0%,rgba(80,120,255,.12) 0%,transparent 55%),linear-gradient(180deg,#0b1110,#0d1413)}}
+:root[data-theme="dark"]{--bg:#0b1110;--card:rgba(255,255,255,.055);--tx:#e9f2ef;--mut:#8fa39d;--bd:rgba(255,255,255,.08);--ac:#3fd5ae;--ac2:rgba(63,213,174,.12);--glass-bd:rgba(255,255,255,.09);--shadow:0 12px 34px -14px rgba(0,0,0,.7);--rail:#060a09;--railtx:#7d918b;--grad:radial-gradient(1000px 520px at 0% -10%,rgba(63,213,174,.16) 0%,transparent 60%),radial-gradient(800px 500px at 110% 0%,rgba(80,120,255,.12) 0%,transparent 55%),linear-gradient(180deg,#0b1110,#0d1413)}
+html,body{background:var(--bg)}
+body{background:var(--grad) fixed,var(--bg);font-family:"SF Pro Display",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;letter-spacing:-.01em;padding-left:calc(max(12px,env(safe-area-inset-left,0px)) + 80px)}
+h1{font-size:28px;font-weight:800;letter-spacing:-.03em}
+.sub{font-size:14px}
+.card{background:var(--card);border:1px solid var(--glass-bd);border-radius:22px;padding:16px;box-shadow:var(--shadow);-webkit-backdrop-filter:blur(18px) saturate(140%);backdrop-filter:blur(18px) saturate(140%);transition:transform .18s ease,box-shadow .18s ease}
+@media(hover:hover){.card:hover{transform:translateY(-2px);box-shadow:0 18px 40px -16px rgba(15,60,48,.28)}}
+.card h2{font-size:15px;font-weight:700;letter-spacing:-.01em}
+.grid{gap:14px}
+.row{border-top-color:var(--bd)}
+.icon-btn{background:var(--card);border:1px solid var(--glass-bd);border-radius:14px;box-shadow:var(--shadow);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
+.btn{border-radius:999px;padding:10px 18px;box-shadow:0 6px 16px -8px rgba(15,138,108,.6)}
+.btn.ghost{background:var(--card);border:1px solid var(--glass-bd);box-shadow:none}
+.chip{border-radius:999px}
+.bar{background:rgba(127,150,144,.18);height:10px}
+.bar i{background:linear-gradient(90deg,var(--ac),#5fd3b5)}
+input,select,textarea{border-radius:12px!important}
+/* Schwebende dunkle Leiste */
+.nav{top:10px;bottom:10px;left:calc(env(safe-area-inset-left,0px) + 8px);width:64px;border-radius:26px;background:var(--rail);border:0;box-shadow:0 18px 40px -16px rgba(0,0,0,.55);padding:12px 6px}
+.nav button{color:var(--railtx);border-radius:16px;font-size:9.5px}
+.nav button svg{width:20px;height:20px}
+.nav button.on{background:rgba(63,213,174,.16);color:#5fe3c0}
+.nav .badge{border:2px solid var(--rail)}
+/* Kopfkarte wie „Work's always better together“: dunkles Glas */
+.hero{background:linear-gradient(135deg,#13201d 0%,#1d3a33 55%,#2b5a4d 100%)!important;color:#eaf6f2;border:1px solid rgba(255,255,255,.08)}
+.hero .hero-g{color:#fff;font-size:22px}
+.hero .hero-s{color:rgba(234,246,242,.7)}
+.hero-t{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.1);color:#fff;border-radius:16px}
+.hero-t b{font-size:26px;font-weight:800;letter-spacing:-.03em}
+.hero-t span{color:rgba(234,246,242,.7)}
+.hero-t.warn b{color:#ffb4a8}
+.hero-q{background:rgba(255,255,255,.95);border:0;border-radius:16px}
+.hero-q input{color:#0f1a17}
+.hero-up{background:linear-gradient(135deg,#3fd5ae,#0f8a6c);color:#fff}
+/* Kennzahlen groß und klar */
+.fin-kpis b,.pj-facts b{letter-spacing:-.02em}
+.fin-kpis div,.pj-facts div{background:rgba(127,150,144,.10);border-radius:14px}
+.fin-kpis b{font-size:20px}
+.pj-next{background:linear-gradient(135deg,var(--ac2),transparent);border:1px solid var(--glass-bd);border-radius:16px}
+.pj-steps i{height:7px}
+.pj-steps i.on{background:linear-gradient(90deg,var(--ac),#5fd3b5)}
+.pj-doc{border-radius:12px;background:var(--card);border-color:var(--glass-bd)}
+.wxd{background:rgba(127,150,144,.10);border-radius:14px}
+.cres{border-radius:14px}
+.job summary{padding:12px 0}
+.bw-wait{border-radius:14px;background:rgba(127,150,144,.10)}
+dialog{border-radius:24px!important;border:1px solid var(--glass-bd)!important;box-shadow:0 30px 60px -20px rgba(0,0,0,.45)}
+dialog::backdrop{background:rgba(8,20,17,.35);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+@media (prefers-reduced-motion:reduce){.card{transition:none}.card:hover{transform:none}}
+dialog{background:#f7fbf9!important}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]) dialog{background:#121a18!important}}
+:root[data-theme="dark"] dialog{background:#121a18!important}
+.toast{border-radius:14px}
+.grid{grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr))}
