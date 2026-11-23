@@ -87,7 +87,7 @@ function hubDigest() {
     routinen: S.routines.map(r => [r.n, r.last || '']), projekte: (S.projects || []).map(p => [p.id, p.tab, p.title, p.stage, p.next, p.nextDate]),
     arbeit: S.work || {}, finanzen: { konten: (F.accounts || []).map(a => [a.name, a.type || '']), positionen: (F.positions || []).map(p => [p.name, p.isin || '', p.qty || '', p.price || p.value || '', p.date || '']), ziele: (F.goals || []).map(g => [g.name, g.target, g.date || '']), verlauf: (F.history || []).slice(-6).map(h => [h.d, Math.round(h.total || 0)]), radar: { stand: R.asOf || '', items: (R.items || []).map(i => [i.name, i.cat, i.val]) } },
     gemerkt: (B.facts || []).map(f => [f.kind, f.text]), wissen: K.map(k => [k.id, cut(k.title, 90), (k.tags || []).slice(0, 5).join(','), k.status === 'Zu lesen' ? 'neu' : '']),
-    jobs: (S.jobLog || []).slice(0, 15).map(j => [j.source, String(j.at).slice(0, 16), cut(j.summary, 200), j.fb || '']), wetter: S.weather ? (S.weather.days || []).slice(0, 2) : [] };
+    jobs: (S.jobLog || []).slice(0, 15).map(j => [j.source, String(j.at).slice(0, 16), cut(j.summary, 200), j.fb || '']), entwuerfe: (S.drafts || []).filter(d => d.st === 'offen').map(d => [d.agent, d.kind, d.title]), wetter: S.weather ? (S.weather.days || []).slice(0, 2) : [] };
 }
 async function artWriteDigest(at) {
   if (!ART.db || Date.now() - artDigestAt < 5 * 60e3) return;

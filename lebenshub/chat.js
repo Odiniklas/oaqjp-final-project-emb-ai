@@ -62,7 +62,7 @@ function tools() {
     { name: 'store_attachment', description: 'Angehängte Dateien dieser Nachricht unter „Dokumente“ ablegen.',
       input_schema: { type: 'object', additionalProperties: false, required: ['area', 'title', 'summary'], properties: {
         area: { type: 'string', enum: ['work', 'money', 'health'] }, title: str('Titel'), summary: str('2–4 Sätze') } } }
-  ].concat(typeof FIN_TOOLS !== 'undefined' ? FIN_TOOLS : [], typeof KNOW_TOOLS !== 'undefined' ? KNOW_TOOLS : [], typeof HEALTH_TOOLS !== 'undefined' ? HEALTH_TOOLS : [], typeof BRAIN_TOOLS !== 'undefined' ? BRAIN_TOOLS : [], typeof LIFE_TOOLS !== 'undefined' ? LIFE_TOOLS : [], typeof TT_TOOLS !== 'undefined' ? TT_TOOLS : [], typeof GOAL_TOOLS !== 'undefined' ? GOAL_TOOLS : [], typeof PENS_TOOLS !== 'undefined' ? PENS_TOOLS : [], typeof RADAR_TOOLS !== 'undefined' ? RADAR_TOOLS : [], typeof PROJECT_TOOLS !== 'undefined' ? PROJECT_TOOLS : [], typeof mailTools === 'function' ? mailTools() : [], typeof MIND_TOOLS !== 'undefined' ? MIND_TOOLS : []);
+  ].concat(typeof FIN_TOOLS !== 'undefined' ? FIN_TOOLS : [], typeof KNOW_TOOLS !== 'undefined' ? KNOW_TOOLS : [], typeof HEALTH_TOOLS !== 'undefined' ? HEALTH_TOOLS : [], typeof BRAIN_TOOLS !== 'undefined' ? BRAIN_TOOLS : [], typeof LIFE_TOOLS !== 'undefined' ? LIFE_TOOLS : [], typeof TT_TOOLS !== 'undefined' ? TT_TOOLS : [], typeof GOAL_TOOLS !== 'undefined' ? GOAL_TOOLS : [], typeof PENS_TOOLS !== 'undefined' ? PENS_TOOLS : [], typeof RADAR_TOOLS !== 'undefined' ? RADAR_TOOLS : [], typeof PROJECT_TOOLS !== 'undefined' ? PROJECT_TOOLS : [], typeof AGENT_TOOLS !== 'undefined' ? AGENT_TOOLS : [], typeof mailTools === 'function' ? mailTools() : [], typeof MIND_TOOLS !== 'undefined' ? MIND_TOOLS : []);
 }
 
 /* Kompakte Hub-Daten (kurze Schlüssel = weniger Tokens) */
@@ -103,7 +103,7 @@ async function guardedTool(name, x, turn) {
   return runTool(name, x, turn);
 }
 function runTool(name, x, turn) {
-  const fr = (typeof mindTool === 'function' ? mindTool(name, x || {}) : null) || (typeof projectTool === 'function' ? projectTool(name, x || {}) : null) || (typeof finTool === 'function' ? finTool(name, x || {}) : null) || (typeof knowTool === 'function' ? knowTool(name, x || {}) : null) || (typeof healthTool === 'function' ? healthTool(name, x || {}) : null) || (typeof weatherTool === 'function' ? weatherTool(name, x || {}) : null) || (typeof brainTool === 'function' ? brainTool(name, x || {}) : null) || (typeof lifeTool === 'function' ? lifeTool(name, x || {}) : null) || (typeof ttTool === 'function' ? ttTool(name, x || {}) : null) || (typeof goalTool === 'function' ? goalTool(name, x || {}) : null) || (typeof pensTool === 'function' ? pensTool(name, x || {}) : null) || (typeof radarTool === 'function' ? radarTool(name, x || {}) : null);
+  const fr = (typeof mindTool === 'function' ? mindTool(name, x || {}) : null) || (typeof projectTool === 'function' ? projectTool(name, x || {}) : null) || (typeof agentTool === 'function' ? agentTool(name, x || {}) : null) || (typeof finTool === 'function' ? finTool(name, x || {}) : null) || (typeof knowTool === 'function' ? knowTool(name, x || {}) : null) || (typeof healthTool === 'function' ? healthTool(name, x || {}) : null) || (typeof weatherTool === 'function' ? weatherTool(name, x || {}) : null) || (typeof brainTool === 'function' ? brainTool(name, x || {}) : null) || (typeof lifeTool === 'function' ? lifeTool(name, x || {}) : null) || (typeof ttTool === 'function' ? ttTool(name, x || {}) : null) || (typeof goalTool === 'function' ? goalTool(name, x || {}) : null) || (typeof pensTool === 'function' ? pensTool(name, x || {}) : null) || (typeof radarTool === 'function' ? radarTool(name, x || {}) : null);
   if (fr) return fr;
   const L = k => { if (!S.lists[k]) throw new Error('Unbekannte Liste ' + k); return S.lists[k]; };
   const stIdx = (k, s) => { const c = C.find(y => y.k === k); if (!c.st || !s) return 0; const i = c.st.findIndex(v => v.toLowerCase() === String(s).toLowerCase()); return i < 0 ? 0 : i; };
@@ -240,6 +240,7 @@ async function sendChat(text) {
 let chatStream = '', chatCtl = null;
 /* Nur passende Werkzeuge mitgeben (Claude erlaubt pro Anfrage nur eine begrenzte Zahl) */
 const TOOL_GROUPS = [
+  [/entwurf|post|linkedin|newsletter|agent|nachfass|freigabe/i, ['add_draft']],
   [/mail|e-mail|gmail|posteingang|postfach|geschrieben|antwort|absage|einladung|rückmeldung|nachricht von/i, ['search_mail', 'read_mail', 'draft_mail']],
   [/projekt|forschung|promotion|antrag|bewerbung|warten|stand/i, ['set_project', 'set_bw_wait']],
   [/termin|eintrag|liste|aufgabe|todo|erinner|routine|bewerb|frist|schritt|notier|merk|lösch|änder|erledigt|abhak/i, ['add_entry', 'update_entry', 'delete_entry', 'add_routine', 'complete_routine', 'delete_routine']],

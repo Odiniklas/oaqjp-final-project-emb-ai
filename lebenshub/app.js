@@ -205,7 +205,7 @@ function viewToday() {
   const doneT = S.routines.filter(r => r.last === t && !H.state(r, t).due);
   const total = due.length + doneT.length;
   const pct = total ? Math.round(doneT.length / total * 100) : 100;
-  let h = searchCard() + (typeof weatherCard === 'function' ? weatherCard() : '') + (typeof calTodayCard === 'function' ? calTodayCard() : '') + (typeof glanceCard === 'function' ? glanceCard() : '') + (typeof musicCard === 'function' ? musicCard() : '') + `<section class="card wide"><h2>Heute zu tun<small>${doneT.length} von ${total} erledigt</small></h2><div class="bar"><i style="width:${pct}%"></i></div>
+  let h = searchCard() + (typeof draftsCard === 'function' ? draftsCard() : '') + (typeof weatherCard === 'function' ? weatherCard() : '') + (typeof calTodayCard === 'function' ? calTodayCard() : '') + (typeof glanceCard === 'function' ? glanceCard() : '') + (typeof musicCard === 'function' ? musicCard() : '') + `<section class="card wide"><h2>Heute zu tun<small>${doneT.length} von ${total} erledigt</small></h2><div class="bar"><i style="width:${pct}%"></i></div>
     ${due.map(r => routineRow(r, t)).join('')}${doneT.map(r => routineRow(r, t)).join('')}
     ${!total ? '<div class="empty">Heute stehen keine Routinen an.</div>' : !due.length ? '<div class="empty">Alles erledigt. Gute Arbeit!</div>' : ''}</section>`;
 
@@ -265,14 +265,14 @@ function jobAct(act, b) {
 function viewRoutines() {
   const t = H.today();
   const cl = S.routines.filter(r => r.claude);
-  let h = !cl.length ? '' : `<section class="card wide"><h2>Geplante Claude-Aufgaben<small>laufen automatisch</small></h2>
+  let h = (typeof agentsCard === 'function' ? agentsCard() : '') + (!cl.length ? '' : `<section class="card wide"><h2>Geplante Claude-Aufgaben<small>laufen automatisch</small></h2>
     <div class="hint">Claude führt diese Aufgaben zu den genannten Zeiten selbst aus und schickt dir das Ergebnis. Die App erinnert dich danach, es zu lesen und umzusetzen.</div>
     ${cl.map(r => {
       const nx = H.nextOcc(r, H.add(t, -1));
       const j = jobsFor(r)[0];
       return routineRow(r, t) + `<div class="cinfo"><span>Ergebnis: ${esc(r.claude.out)}</span><span>Nächster Lauf: ${nx ? rel(nx, t) : '—'}</span></div>`
         + (j ? `<button class="cres" data-act="jobOpen" data-v="${esc(jobName(j))}"><b>Zuletzt ${esc(jobWhen(j.at))}:</b> ${esc(j.summary.slice(0, 160))}${j.summary.length > 160 ? ' …' : ''}<span>Ergebnis ansehen ›</span></button>` : '<div class="cres none">Noch kein Ergebnis eingegangen.</div>');
-    }).join('') || '<div class="empty">Keine.</div>'}</section>`;
+    }).join('') || '<div class="empty">Keine.</div>'}</section>`);
   h += jobsCard();
   const grp = [['daily', 'Täglich'], ['weekly', 'Wöchentlich'], ['monthly', 'Monatlich']];
   h += grp.map(([f, l]) => {
@@ -534,7 +534,7 @@ document.addEventListener('click', e => {
     case 'export': download('lebenshub-backup-' + t + '.json', 'application/json', JSON.stringify(S, null, 1)); break;
     case 'import': $('importFile').click(); break;
     case 'reset': askConfirm(ART.db ? 'Wirklich alle Hub-Daten löschen – auf allen Geräten? Mach vorher ein Backup.' : 'Wirklich alle Daten auf diesem Gerät löschen? Mach vorher ein Backup.', 'Alles löschen').then(ok => { if (ok) { const st = S.settings; S = seed(); S.settings = st; save('Zurückgesetzt'); } }); break;
-    default: if (jobAct(act, b)) break; if (typeof pjAct === 'function' && pjAct(act, b)) break; if (prepAct(act, b)) break; if (typeof workAct === 'function' && workAct(act, b)) break; if (typeof radarAct === 'function' && radarAct(act, b)) break; if (typeof promptAct === 'function' && promptAct(act, b)) break; if (typeof researchAct === 'function' && researchAct(act, b)) break; if (typeof ttAct === 'function' && ttAct(act, b)) break; if (typeof lifeAct === 'function' && lifeAct(act, b)) break; if (typeof calAct === 'function' && calAct(act, b)) break; if (typeof brainAct === 'function' && brainAct(act, b)) break; if (typeof odiOrbAct === 'function' && odiOrbAct(act, b)) break; if (typeof photoAct === 'function' && photoAct(act, b)) break; if (typeof musicAct === 'function' && musicAct(act, b)) break; if (typeof odiAct === 'function' && odiAct(act, b)) break; if (typeof mailAct === 'function' && mailAct(act, b)) break; if (typeof healthAct === 'function' && healthAct(act, b)) break; if (typeof knowAct === 'function' && knowAct(act, b)) break; if (typeof finAct === 'function' && finAct(act, b)) break; if (typeof docAct === 'function' && docAct(act, b)) break; if (typeof chatAct === 'function') chatAct(act, b); break;
+    default: if (jobAct(act, b)) break; if (typeof agentsAct === 'function' && agentsAct(act, b)) break; if (typeof pjAct === 'function' && pjAct(act, b)) break; if (prepAct(act, b)) break; if (typeof workAct === 'function' && workAct(act, b)) break; if (typeof radarAct === 'function' && radarAct(act, b)) break; if (typeof promptAct === 'function' && promptAct(act, b)) break; if (typeof researchAct === 'function' && researchAct(act, b)) break; if (typeof ttAct === 'function' && ttAct(act, b)) break; if (typeof lifeAct === 'function' && lifeAct(act, b)) break; if (typeof calAct === 'function' && calAct(act, b)) break; if (typeof brainAct === 'function' && brainAct(act, b)) break; if (typeof odiOrbAct === 'function' && odiOrbAct(act, b)) break; if (typeof photoAct === 'function' && photoAct(act, b)) break; if (typeof musicAct === 'function' && musicAct(act, b)) break; if (typeof odiAct === 'function' && odiAct(act, b)) break; if (typeof mailAct === 'function' && mailAct(act, b)) break; if (typeof healthAct === 'function' && healthAct(act, b)) break; if (typeof knowAct === 'function' && knowAct(act, b)) break; if (typeof finAct === 'function' && finAct(act, b)) break; if (typeof docAct === 'function' && docAct(act, b)) break; if (typeof chatAct === 'function') chatAct(act, b); break;
     case 'install': if (installEvt) { installEvt.prompt(); installEvt.userChoice.finally(() => { installEvt = null; render(); }); } break;
   }
 });
