@@ -581,3 +581,10 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:' && !window.cla
 try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) { /* egal */ }
 
 document.addEventListener('toggle', e => { const d = e.target; if (d && d.matches && d.matches('details.job')) { if (d.open) JOBOPEN = d.dataset.job; else if (JOBOPEN === d.dataset.job) JOBOPEN = ''; } }, true);
+
+/* Sicherheit: Links nur zu http(s), mailto oder Seitenankern – schützt vor javascript:-Links in Daten von Jobs oder Mails */
+(function () {
+  const ok = /^(https?:|mailto:|#|\.?\/)/i;
+  const fix = root => { if (!root || !root.querySelectorAll) return; root.querySelectorAll('a[href]').forEach(a => { if (!ok.test((a.getAttribute('href') || '').trim())) a.removeAttribute('href'); }); };
+  try { new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(n => { if (n.nodeType === 1) { if (n.tagName === 'A') fix(n.parentNode); else fix(n); } }))).observe(document.documentElement, { childList: true, subtree: true }); } catch (e) { /* egal */ }
+})();

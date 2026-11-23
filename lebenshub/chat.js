@@ -86,6 +86,13 @@ function hubSnapshot() {
     '\nGehirn (Erkenntnisse, Verknüpfungen, offene Fragen): ' + (typeof brainSnapshotText === 'function' ? brainSnapshotText() : '{}') + '\n</hub>';
 }
 
+/* Schutz vor Prompt-Injection: Nach dem Lesen von Mails sind Löschaktionen in diesem Durchgang gesperrt */
+async function guardedTool(name, x, turn) {
+  const isMail = typeof MAIL_NAMES !== 'undefined' && MAIL_NAMES.includes(name);
+  if (isMail) { if (turn) turn.mailRead = true; return mailToolRun(name, x); }
+  if (turn && turn.mailRead && /^(delete_|remove_)/.test(name)) throw new Error('Löschen ist gesperrt, solange in dieser Antwort Mails gelesen wurden – bitte in einer neuen Nachricht ausdrücklich bestätigen.');
+  return runTool(name, x, turn);
+}
 function runTool(name, x, turn) {
   const fr = (typeof mindTool === 'function' ? mindTool(name, x || {}) : null) || (typeof projectTool === 'function' ? projectTool(name, x || {}) : null) || (typeof finTool === 'function' ? finTool(name, x || {}) : null) || (typeof knowTool === 'function' ? knowTool(name, x || {}) : null) || (typeof healthTool === 'function' ? healthTool(name, x || {}) : null) || (typeof weatherTool === 'function' ? weatherTool(name, x || {}) : null) || (typeof brainTool === 'function' ? brainTool(name, x || {}) : null) || (typeof lifeTool === 'function' ? lifeTool(name, x || {}) : null) || (typeof ttTool === 'function' ? ttTool(name, x || {}) : null) || (typeof goalTool === 'function' ? goalTool(name, x || {}) : null) || (typeof pensTool === 'function' ? pensTool(name, x || {}) : null) || (typeof radarTool === 'function' ? radarTool(name, x || {}) : null);
   if (fr) return fr;
@@ -209,7 +216,7 @@ async function sendChat(text) {
       const uses = res.content.filter(b => b.type === 'tool_use');
       if (res.stop_reason !== 'tool_use' || !uses.length) break;
       msgs.push({ role: 'user', content: await Promise.all(uses.map(async u => {
-        try { const r = typeof MAIL_NAMES !== 'undefined' && MAIL_NAMES.includes(u.name) ? await mailToolRun(u.name, u.input || {}) : runTool(u.name, u.input || {}, turn); actions.push(r.label); return { type: 'tool_result', tool_use_id: u.id, content: r.result }; }
+        try { const r = await guardedTool(u.name, u.input || {}, turn); actions.push(r.label); return { type: 'tool_result', tool_use_id: u.id, content: r.result }; }
         catch (e) { return { type: 'tool_result', tool_use_id: u.id, content: 'Fehler: ' + e.message, is_error: true }; }
       })) });
     }
@@ -290,7 +297,7 @@ async function sendArt(text) {
       cache: false, signal: chatCtl.signal, modelTier: tier,
       ...(images.length && ART.imgMax ? { images: images.slice(0, ART.imgMax) } : {}),
       tools: pickTools(text + ' ' + (extra ? 'anhang' : ''), ART.toolMax, turn.files.length > 0).map(t => ({ name: t.name, description: t.description, inputSchema: t.input_schema,
-        execute: async inp => { const r = typeof MAIL_NAMES !== 'undefined' && MAIL_NAMES.includes(t.name) ? await mailToolRun(t.name, inp || {}) : runTool(t.name, inp || {}, turn); actions.push(r.label); chatStream = chatStream || '…'; showStream(); return r.result; } })),
+        execute: async inp => { const r = await guardedTool(t.name, inp || {}, turn); actions.push(r.label); chatStream = chatStream || '…'; showStream(); return r.result; } })),
       onText: ({ text: tx }) => { chatStream = tx; showStream(); if (voiceTurn && typeof streamSpeak === 'function') streamSpeak(tx); }
     });
     reply = res.text.trim();

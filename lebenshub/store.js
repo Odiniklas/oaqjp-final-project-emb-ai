@@ -95,6 +95,8 @@ async function artSaveNow() {
 }
 
 /* Ergebnisse der geplanten Claude-Jobs übernehmen: inbox/<id> = {source, at, summary, actions:[{tool,…}]} */
+/* Sicherheit: Claude-Jobs (die Webseiten und Mails lesen) dürfen über die Inbox nichts löschen */
+const INBOX_BLOCKED = /^(delete_|remove_|reset|clear)/;
 async function artProcessInbox() {
   if (!ART.db || !ART.ready || artInboxBusy || !ART.inbox.length || !SPLIT.every(k => artPart.loaded[k])) return;
   artInboxBusy = true;
@@ -108,7 +110,9 @@ async function artProcessInbox() {
       if (!snap.exists) continue;
       const x = snap.data() || {}, labels = [], turn = { files: [] };
       (Array.isArray(x.actions) ? x.actions : []).slice(0, 60).forEach(a => {
-        try { labels.push(runTool(String(a.tool || ''), a, turn).label); } catch (e) { labels.push('⚠︎ ' + (a.tool || '?') + ': ' + e.message); }
+        const tn = String(a.tool || '');
+        if (INBOX_BLOCKED.test(tn)) { labels.push('⛔ ' + tn + ' blockiert – Löschen nur direkt mit Odi'); return; }
+        try { labels.push(runTool(tn, a, turn).label); } catch (e) { labels.push('⚠︎ ' + (a.tool || '?') + ': ' + e.message); }
       });
       const docA = (Array.isArray(x.actions) ? x.actions : []).find(a => a && /^https:\/\//.test(String(a.doc || a.url || '')));
       const doc = /^https:\/\//.test(String(x.doc || x.url || '')) ? String(x.doc || x.url) : docA ? String(docA.doc || docA.url) : '';
