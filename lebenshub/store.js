@@ -76,6 +76,24 @@ async function artInit() {
 }
 
 function artSave() { if (!ART.db) return; clearTimeout(artSaveT); artSaveT = setTimeout(artSaveNow, 500); }
+/* Kompakte Zusammenfassung für Claude-Jobs (parts/digest): spart Tokens, weil Jobs nicht den ganzen Hub lesen müssen */
+let artDigestAt = 0;
+function hubDigest() {
+  const t = H.today(), cut = (x, n) => { x = String(x || ''); return x.length > n ? x.slice(0, n) + '…' : x; };
+  const lists = {};
+  C.forEach(c => { if (/-alt$/.test(c.tab) || c.tab === 'files') return; const L = S.lists[c.k].filter(it => !isDone(c, it) && !(c.k === 't' && it.d && it.d < t)); if (L.length) lists[c.k] = L.map(it => [it.id, it.n, cut(it.t, 120), it.d || '', c.st ? c.st[it.s] : '', it.prep ? 'prep' : ''].filter((v, i) => v !== '' || i < 2)); });
+  const K = typeof know === 'function' ? know() : [], B = typeof brain === 'function' ? brain() : {}, F = S.fin || {}, R = F.radar || {};
+  return { stand: t, hinweis: 'Kompakte Sicht. Volle Daten: collection hub/state und parts/know.', listen: lists,
+    routinen: S.routines.map(r => [r.n, r.last || '']), projekte: (S.projects || []).map(p => [p.id, p.tab, p.title, p.stage, p.next, p.nextDate]),
+    arbeit: S.work || {}, finanzen: { konten: (F.accounts || []).map(a => [a.name, a.type || '']), positionen: (F.positions || []).map(p => [p.name, p.isin || '', p.qty || '', p.price || p.value || '', p.date || '']), ziele: (F.goals || []).map(g => [g.name, g.target, g.date || '']), verlauf: (F.history || []).slice(-6).map(h => [h.d, Math.round(h.total || 0)]), radar: { stand: R.asOf || '', items: (R.items || []).map(i => [i.name, i.cat, i.val]) } },
+    gemerkt: (B.facts || []).map(f => [f.kind, f.text]), wissen: K.map(k => [k.id, cut(k.title, 90), (k.tags || []).slice(0, 5).join(','), k.status === 'Zu lesen' ? 'neu' : '']),
+    jobs: (S.jobLog || []).slice(0, 15).map(j => [j.source, String(j.at).slice(0, 16), cut(j.summary, 200), j.fb || '']), wetter: S.weather ? (S.weather.days || []).slice(0, 2) : [] };
+}
+async function artWriteDigest(at) {
+  if (!ART.db || Date.now() - artDigestAt < 5 * 60e3) return;
+  artDigestAt = Date.now();
+  try { await ART.db.doc('parts/digest').set({ data: hubDigest(), at }); } catch (e) { artDigestAt = 0; }
+}
 async function artSaveNow() {
   if (!ART.db) return;
   if (artWriting) { artAgain = true; return; }
@@ -89,6 +107,7 @@ async function artSaveNow() {
   try {
     for (const [k, pj] of parts) { await ART.db.doc('parts/' + k).set({ data: JSON.parse(pj), at }); artPart.json[k] = pj; artPart.data[k] = JSON.parse(pj); }
     if (j !== artLastJson) { artLastJson = j; await ART.db.doc('hub/state').set({ state: JSON.parse(j), at }); }
+    artWriteDigest(at);
   } catch (e) { artLastJson = ''; SPLIT.forEach(k => { artPart.json[k] = ''; }); toast('Speichern bei Claude fehlgeschlagen (' + (e.code || '?') + ').'); }
   artWriting = false;
   if (artAgain) { artAgain = false; artSaveNow(); }
@@ -117,7 +136,7 @@ async function artProcessInbox() {
       const docA = (Array.isArray(x.actions) ? x.actions : []).find(a => a && /^https:\/\//.test(String(a.doc || a.url || '')));
       const doc = /^https:\/\//.test(String(x.doc || x.url || '')) ? String(x.doc || x.url) : docA ? String(docA.doc || docA.url) : '';
       S.jobLog = [{ source: String(x.source || 'Claude-Job').slice(0, 80), at: String(x.at || new Date().toISOString()), summary: String(x.summary || '').slice(0, 4000), labels, doc: doc.slice(0, 300) }]
-        .concat(S.jobLog || []).slice(0, 80);
+        .concat(S.jobLog || []).slice(0, 60).map((j, i) => i < 20 || String(j.summary || '').length <= 600 ? j : Object.assign({}, j, { summary: String(j.summary).slice(0, 600) + ' …' }));
       save(labels.length ? (x.source || 'Claude-Job') + ': ' + labels.length + ' Änderungen übernommen' : undefined);
       await artSaveNow();
       try { await ref.delete(); } catch (e) { /* nächster Durchlauf */ }

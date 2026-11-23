@@ -133,7 +133,7 @@ const BRAIN_TOOLS = [
   { name: 'add_insight', description: 'Eine bereichsübergreifende Erkenntnis im Gehirn speichern (Zusammenhang, Chance, Muster).', input_schema: { type: 'object', additionalProperties: false, required: ['text'], properties: { text: { type: 'string' }, refs: { type: 'array', items: { type: 'string' }, description: 'Knoten-ids wie know:<id>, doc:<id>, item:<liste>:<id>, rt:<id>, pos:<id>' } } } },
   { name: 'link_items', description: 'Zwei Dinge im Gehirn verknüpfen.', input_schema: { type: 'object', additionalProperties: false, required: ['a', 'b'], properties: { a: { type: 'string' }, b: { type: 'string' }, why: { type: 'string' } } } }
 ];
-function brainSnapshotText() { const B = brain(); return JSON.stringify({ erkenntnisse: B.insights.slice(0, 12).map(i => i.text), verknuepfungen: B.links.slice(-40).map(l => [l.a, l.b, l.why]), fragen: B.questions }); }
+function brainSnapshotText() { const B = brain(); return JSON.stringify({ erkenntnisse: B.insights.slice(0, 8).map(i => i.text), verknuepfungen: B.links.slice(-12).map(l => [l.a, l.b, l.why]), fragen: (B.questions || []).slice(0, 6) }); }
 function brainAct(act, b) {
   if (act === 'bnode') { brSel = b.dataset.id || null; render(); return true; }
   if (act === 'bopen') { brOpen(b.dataset.id); return true; }

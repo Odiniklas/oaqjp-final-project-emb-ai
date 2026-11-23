@@ -37,7 +37,7 @@ const KNOW_TOOLS = [
     input_schema: { type: 'object', additionalProperties: false, required: ['id'], properties: { id: { type: 'string', description: 'id oder Titel' } } } }
 ];
 function knowSnapshotText() {
-  return JSON.stringify(know().slice(0, 80).map(k => [k.id, k.title, k.kind, k.tags.join(','), k.status]));
+  const K = know(); return JSON.stringify({ anzahl: K.length, neueste: K.slice(0, 30).map(k => [k.id, k.title, k.kind, k.tags.slice(0, 4).join(','), k.status]), hinweis: 'Ältere Einträge mit search_hub oder get_knowledge' });
 }
 
 /* ---------- Ansicht ---------- */

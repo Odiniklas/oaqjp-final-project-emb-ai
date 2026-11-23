@@ -66,21 +66,30 @@ function tools() {
 }
 
 /* Kompakte Hub-Daten (kurze Schlüssel = weniger Tokens) */
-function hubSnapshot() {
-  const t = H.today();
+function hubSnapshot(q) {
+  const t = H.today(); q = String(q || '');
+  const want = re => !q || re.test(q), skip = ' (für diese Frage nicht geladen – bei Bedarf search_hub)';
+  const W = { fin: want(/geld|finanz|depot|aktie|etf|konto|spar|vermögen|radar|kurs|krypto|million|invest|kauf|börse|nvidia|ziel/i), life: want(/vertrag|versicher|miete|leben|abo|kündig|kosten|budget|netto|gehalt|wohnung|auto|rente/i), health: want(/gesund|schlaf|training|sport|essen|ernähr|puls|schmerz|physio|arzt|verletz|bruch|garmin/i), tt: /tiktok|video/i.test(q), files: want(/dokument|ablage|unterlage|zeugnis|datei|pdf/i) };
   const lists = {};
+  /* Token sparen: nur offene/aktuelle Einträge, Notizen gekürzt, Ablage nur mit Titel – Details holt Odi mit search_hub */
+  const cut = (x, n) => { x = String(x || ''); return x.length > n ? x.slice(0, n) + '…' : x; };
   C.forEach(c => {
+    if (/-alt$/.test(c.tab)) return;
+    const ablage = c.tab === 'files';
+    if (ablage && !W.files) return;
+    const L = S.lists[c.k].filter(it => !isDone(c, it) && !(c.k === 't' && it.d && it.d < t));
+    if (!L.length) return;
     lists[c.k] = { name: c.title, ...(c.st ? { st: c.st } : {}),
-      e: S.lists[c.k].map(it => [it.id, it.n, it.t || '', it.d || ''].concat(c.st ? [c.st[it.s]] : [])) };
+      e: L.map(it => [it.id, it.n, ablage ? '' : cut(it.t, 160), it.d || ''].concat(c.st ? [c.st[it.s]] : [])) };
   });
   const r = S.routines.map(x => { const st = H.state(x, t); return [x.id, x.n, H.freqLabel(x) + (x.time ? ' ' + x.time : ''), st.due ? 'fällig' : 'nächste ' + (st.next || '-')]; });
   return `<hub heute="${t} ${H.WDL[H.P(t).getUTCDay()]}">\nFormat Listeneintrag: [id, titel, notiz, datum, status]; Routine: [id, titel, rhythmus, zustand]\n` +
-    JSON.stringify({ listen: lists, routinen: r, dokumente: DOCS.map(d => (d.analysis && d.analysis.title) || d.name) }) +
-    '\nProjekte [Bereich, Titel, Stand, nächster Schritt, bis]: ' + (typeof projectsSnapshotText === 'function' ? projectsSnapshotText() : '') + '\nFinanzen [Konto, Art, Guthaben, Stichtag] / [Konto, Wertpapier, ISIN, Stück, Einstand, Kurs, Kursdatum]: ' + (typeof finSnapshotText === 'function' ? finSnapshotText() : '') + '\nAktienradar-Ampel [Aktie, Kategorie, Bewertung, Kurs, Zone]: ' + (typeof radarSnapshotText === 'function' ? radarSnapshotText() : '{}') +
+    JSON.stringify({ listen: lists, routinen: r, dokumente: DOCS.length + ' abgelegte Dokumente – bei Bedarf mit search_hub suchen' }) +
+    '\nProjekte [Bereich, Titel, Stand, nächster Schritt, bis]: ' + (typeof projectsSnapshotText === 'function' ? projectsSnapshotText() : '') + '\nFinanzen [Konto, Art, Guthaben, Stichtag] / [Konto, Wertpapier, ISIN, Stück, Einstand, Kurs, Kursdatum]: ' + (!W.fin ? skip : typeof finSnapshotText === 'function' ? finSnapshotText() : '') + '\nAktienradar-Ampel [Aktie, Kategorie, Bewertung, Kurs, Zone]: ' + (!W.fin ? skip : typeof radarSnapshotText === 'function' ? radarSnapshotText() : '{}') +
     '\nWissen [id, Titel, Art, Themen, Status] (Details mit get_knowledge): ' + (typeof knowSnapshotText === 'function' ? knowSnapshotText() : '[]') +
-    '\nGesundheit (letzte 7 Tage): ' + (typeof healthSnapshotText === 'function' ? healthSnapshotText() : '{}') +
-    '\nLeben (Netto, Fixkosten/Monat, Verträge [id, Bereich, Name, Anbieter, Betrag, Rhythmus, Status, Frist, Kündigung]): ' + (typeof lifeSnapshotText === 'function' ? lifeSnapshotText() : '{}') +
-    '\nTikTok-Sammlung (Themen, Beispiele): ' + (typeof ttSnapshotText === 'function' ? ttSnapshotText() : '{}') +
+    '\nGesundheit (letzte 7 Tage): ' + (!W.health ? skip : typeof healthSnapshotText === 'function' ? healthSnapshotText() : '{}') +
+    '\nLeben (Netto, Fixkosten/Monat, Verträge [id, Bereich, Name, Anbieter, Betrag, Rhythmus, Status, Frist, Kündigung]): ' + (!W.life ? skip : typeof lifeSnapshotText === 'function' ? lifeSnapshotText() : '{}') +
+    '\nTikTok-Sammlung (Themen, Beispiele): ' + (!W.tt ? skip : typeof ttSnapshotText === 'function' ? ttSnapshotText() : '{}') +
     '\nKalender nächste 14 Tage inkl. Apple-Kalender: ' + (typeof calSnapshotText === 'function' ? calSnapshotText() : '{}') +
     '\nGemerkt [id, Art, Inhalt, Datum]: ' + (typeof factsSnapshot === 'function' ? factsSnapshot() : '[]') +
     '\nGehirn (Erkenntnisse, Verknüpfungen, offene Fragen): ' + (typeof brainSnapshotText === 'function' ? brainSnapshotText() : '{}') + '\n</hub>';
@@ -199,7 +208,7 @@ async function sendChat(text) {
     const content = [];
     for (const f of turn.files) content.push(await toBlock(f));
     const rel = typeof relevantContext === 'function' ? relevantContext(text) : { text: '', refs: [] }; turn.refs = rel.refs;
-    content.push({ type: 'text', text: hubSnapshot() + rel.text + '\n\n' + (text || 'Bitte auswerten und in den Hub übernehmen.') +
+    content.push({ type: 'text', text: hubSnapshot(text) + rel.text + '\n\n' + (text || 'Bitte auswerten und in den Hub übernehmen.') +
       (isVoiceTurn() ? '\n\n(Per Sprache: Der erste Absatz wird vorgelesen – 1–3 kurze, gut sprechbare Sätze ohne Abkürzungen, Symbole oder Links. Details danach als Text.)' : '') });
     const msgs = history().concat([{ role: 'user', content }]);
     for (let i = 0; i < 8; i++) {
@@ -268,7 +277,7 @@ async function sendArtJson(turns, images, turn, actions) {
   return String((out && out.reply) || (actions.length ? 'Erledigt.' : '…'));
 }
 function turns2(text) {
-  return [{ role: 'user', content: sysText() }].concat(history(), [{ role: 'user', content: hubSnapshot() + '\n\n' + text }]);
+  return [{ role: 'user', content: sysText() }].concat(history(), [{ role: 'user', content: hubSnapshot(text) + '\n\n' + text }]);
 }
 async function sendArt(text) {
   const files = chatFiles; chatFiles = []; chatDraft = '';
@@ -289,7 +298,7 @@ async function sendArt(text) {
     const voiceTurn = isVoiceTurn(), tier = pref('tier', 'auto') === 'auto' || pref('tier', 'auto') === 'default' ? (typeof chooseTier === 'function' ? chooseTier(text, voiceTurn) : 'default') : pref('tier', 'default');
     if (voiceTurn && typeof stopSpeech === 'function') stopSpeech();
     const turns = [{ role: 'user', content: sysText() + '\nDie Werkzeuge sind Funktionen dieser App; rufe sie direkt auf.' }].concat(history(),
-      [{ role: 'user', content: hubSnapshot() + extra + '\n\n' + (text || 'Bitte auswerten und in den Hub übernehmen.') +
+      [{ role: 'user', content: hubSnapshot(text) + extra + '\n\n' + (text || 'Bitte auswerten und in den Hub übernehmen.') +
         (isVoiceTurn() ? '\n\n(Per Sprache: Der erste Absatz wird vorgelesen – 1–3 kurze, gut sprechbare Sätze ohne Abkürzungen, Symbole oder Links. Details danach als Text.)' : '') }]);
     chatCtl = new AbortController();
     if (!ART.toolMax) { reply = (await sendArtJson(turns, images, turn, actions)).trim(); throw { done: true }; }
@@ -328,7 +337,7 @@ function aboPrompt(text) {
 ${aboFormat()}
 
 Aktuelle Hub-Daten:
-${hubSnapshot()}
+${hubSnapshot(text)}
 
 Meine Nachricht:
 ${text}`;
