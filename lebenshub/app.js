@@ -141,6 +141,37 @@ function glanceCard() {
     ${finKpis([['Vermögen', eur(t.total, 0)], pl.cost ? ['seit Kauf', (pl.abs >= 0 ? '+' : '−') + eur(Math.abs(pl.abs), 0), pl.abs >= 0 ? 'pos' : 'neg'] : null, free != null ? ['frei/Monat', eur(free, 0), free >= 0 ? 'pos' : 'neg'] : null, R ? ['Rente (heute)', eur(R.total, 0)] : null])}
     ${due.length ? `<div class="hint">Nächste Frist: <button class="chip due" data-act="lifeEdit" data-id="${due[0].id}">${esc(due[0].name)} · ${esc(H.fd(due[0].next))}</button></div>` : ''}</section>`;
 }
+/* Vorbereitung je Termin: it.prep = Link oder Titel eines Wissenseintrags; sonst Doc-Link aus der Notiz */
+function prepOf(it) {
+  if (!it) return null;
+  const p = String(it.prep || '').trim();
+  if (/^https:\/\//.test(p)) return { url: p };
+  if (p) return { know: p };
+  const m = String(it.t || '').match(/https:\/\/claude\.ai\/(?:code\/)?artifact\/[\w-]+/);
+  return m ? { url: m[0] } : null;
+}
+function prepBtn(it, k) {
+  const P = prepOf(it);
+  if (P && P.url) return `<a class="prep-b" href="${esc(P.url)}" target="_blank" rel="noopener" aria-label="Vorbereitung öffnen" title="Vorbereitung öffnen">📄<span> Vorbereitung</span></a>`;
+  if (P) return `<button class="prep-b" data-act="prepKnow" data-v="${esc(P.know)}" aria-label="Vorbereitung öffnen" title="Vorbereitung öffnen">📄<span> Vorbereitung</span></button>`;
+  const t = H.today();
+  if (k === 't' && it.d && it.d >= t && it.d <= H.add(t, 7) && !/physio|friseur|zahnreinigung/i.test(it.n)) return `<button class="prep-b ask" data-act="prepAsk" data-k="${k}" data-id="${esc(it.id)}" aria-label="Vorbereitung erstellen" title="Vorbereitung erstellen">＋📄<span> Vorbereitung</span></button>`;
+  return '';
+}
+function prepAct(act, b) {
+  if (act === 'prepKnow') {
+    const v = b.dataset.v.toLowerCase(), k = (S.know || []).find(x => x.title.toLowerCase() === v) || (S.know || []).find(x => x.title.toLowerCase().includes(v));
+    if (k && typeof editKnow === 'function') editKnow(k.id); else toast('Vorbereitung nicht gefunden');
+    return true;
+  }
+  if (act === 'prepAsk') {
+    const it = (S.lists[b.dataset.k] || []).find(x => x.id === b.dataset.id); if (!it) return true;
+    chatDraft = `Bereite mich auf meinen Termin „${it.n}“ am ${H.fd(it.d)}${it.tm ? ' um ' + it.tm : ''} vor${it.t ? ' (Notiz: ' + it.t + ')' : ''}. Lege eine Vorbereitung als Wissenseintrag an (Ziel und Wunschergebnis, Hintergrund aus meinem Hub, wer dabei ist – nur Rolle und öffentliche Infos, meine Fragen, mögliche Gegenfragen mit Antwortideen, Ablauf, was ich mitnehme, rote Linien, Nachbereitung) und hänge sie an den Termin an.`;
+    TAB = 'chat'; try { sessionStorage.setItem(K + '-tab', 'chat'); } catch (e) { /* egal */ }
+    render(); scrollTo(0, 0); toast('Im Odi-Feld – prüfen und absenden'); return true;
+  }
+  return false;
+}
 function listCard(c, opts) {
   const o = opts || {};
   let L = S.lists[c.k].map((it, i) => Object.assign({}, it, { i }));
@@ -157,7 +188,7 @@ function listCard(c, opts) {
     const late = it.d && it.d < t && !done;
     const date = it.d ? `<span class="chip ${late || it.d === t ? 'due' : 'd'}">${rel(it.d, t)}</span>` : '';
     const st = c.st ? `<button class="chip ${stClass(c.st[it.s] || c.st[0])}" data-act="cycle" data-k="${c.k}" data-id="${it.id}">${esc(c.st[it.s] || c.st[0])}</button>` : '';
-    return `<div class="row ${done ? 'done' : ''}"><button class="t" data-act="iedit" data-k="${c.k}" data-id="${it.id}">${esc(it.n)}${it.t ? `<small>${esc(it.t)}</small>` : ''}</button>${date}${st}</div>`;
+    return `<div class="row ${done ? 'done' : ''}"><button class="t" data-act="iedit" data-k="${c.k}" data-id="${it.id}">${esc(it.n)}${it.t ? `<small>${esc(it.t)}</small>` : ''}</button>${done ? '' : prepBtn(it, c.k)}${date}${st}</div>`;
   }).join('') || '<div class="empty">Noch leer.</div>';
   return `<section class="card ${o.wide ? 'wide' : ''}"><h2>${c.title}<small>${c.dn ? L.filter(x => !isDone(c, x)).length + ' offen' : L.length}</small></h2>${c.hint ? `<div class="hint">${c.hint}</div>` : ''}${rows}
   <div class="add-row"><input type="text" id="in-${c.k}" data-add="${c.k}" placeholder="Neu …" enterkeyhint="done">${c.date ? `<input type="date" id="dt-${c.k}" aria-label="Datum">` : ''}<button class="btn" data-act="add" data-k="${c.k}" aria-label="Hinzufügen">+</button></div></section>`;
@@ -183,14 +214,14 @@ function viewToday() {
   C.forEach(c => S.lists[c.k].forEach(it => {
     if (!it.d || isDone(c, it) || it.d > until) return;
     if (it.d < t && !c.dn) return; // vergangene Termine nicht mehr zeigen
-    up.push({ d: it.d, n: it.n, sub: c.title, k: c.k, id: it.id });
+    up.push({ d: it.d, n: it.n, sub: c.title, k: c.k, id: it.id, it });
   }));
   S.routines.forEach(r => {
     const d = H.nextOcc(r, t);
     if (d && d <= H.add(t, 7) && r.freq !== 'daily') up.push({ d, n: r.n, sub: r.claude ? 'Claude-Aufgabe · ' + r.claude.run : 'Routine · ' + H.freqLabel(r), rid: r.id });
   });
   up.sort((a, b) => a.d.localeCompare(b.d));
-  h += `<section class="card"><h2>Demnächst<small>14 Tage</small></h2>${up.map(x => `<div class="row"><button class="t" data-act="${x.rid ? 'redit' : 'iedit'}" data-id="${x.rid || x.id}" data-k="${x.k || ''}">${esc(x.n)}<small>${esc(x.sub)}</small></button><span class="chip ${x.d <= t ? 'due' : 'd'}">${rel(x.d, t)}</span></div>`).join('') || '<div class="empty">Nichts geplant.</div>'}</section>`;
+  h += `<section class="card"><h2>Demnächst<small>14 Tage</small></h2>${up.map(x => `<div class="row"><button class="t" data-act="${x.rid ? 'redit' : 'iedit'}" data-id="${x.rid || x.id}" data-k="${x.k || ''}">${esc(x.n)}<small>${esc(x.sub)}</small></button>${x.it ? prepBtn(x.it, x.k) : ''}<span class="chip ${x.d <= t ? 'due' : 'd'}">${rel(x.d, t)}</span></div>`).join('') || '<div class="empty">Nichts geplant.</div>'}</section>`;
   h += C.filter(c => c.tab === 'today').map(c => listCard(c)).join('');
   if (!S.settings.notify && !ART.on) h += `<section class="card wide"><h2>Erinnerungen einschalten</h2><div class="hint">Lass dich benachrichtigen, wenn eine Routine fällig ist oder ein Termin ansteht.</div><div class="btns"><button class="btn" data-act="notifon">Benachrichtigungen aktivieren</button><button class="btn ghost" data-act="tab" data-v="settings">Mehr Optionen</button></div></section>`;
   return h;
@@ -502,7 +533,7 @@ document.addEventListener('click', e => {
     case 'export': download('lebenshub-backup-' + t + '.json', 'application/json', JSON.stringify(S, null, 1)); break;
     case 'import': $('importFile').click(); break;
     case 'reset': askConfirm(ART.db ? 'Wirklich alle Hub-Daten löschen – auf allen Geräten? Mach vorher ein Backup.' : 'Wirklich alle Daten auf diesem Gerät löschen? Mach vorher ein Backup.', 'Alles löschen').then(ok => { if (ok) { const st = S.settings; S = seed(); S.settings = st; save('Zurückgesetzt'); } }); break;
-    default: if (jobAct(act, b)) break; if (typeof workAct === 'function' && workAct(act, b)) break; if (typeof radarAct === 'function' && radarAct(act, b)) break; if (typeof promptAct === 'function' && promptAct(act, b)) break; if (typeof researchAct === 'function' && researchAct(act, b)) break; if (typeof ttAct === 'function' && ttAct(act, b)) break; if (typeof lifeAct === 'function' && lifeAct(act, b)) break; if (typeof calAct === 'function' && calAct(act, b)) break; if (typeof brainAct === 'function' && brainAct(act, b)) break; if (typeof odiOrbAct === 'function' && odiOrbAct(act, b)) break; if (typeof photoAct === 'function' && photoAct(act, b)) break; if (typeof musicAct === 'function' && musicAct(act, b)) break; if (typeof odiAct === 'function' && odiAct(act, b)) break; if (typeof mailAct === 'function' && mailAct(act, b)) break; if (typeof healthAct === 'function' && healthAct(act, b)) break; if (typeof knowAct === 'function' && knowAct(act, b)) break; if (typeof finAct === 'function' && finAct(act, b)) break; if (typeof docAct === 'function' && docAct(act, b)) break; if (typeof chatAct === 'function') chatAct(act, b); break;
+    default: if (jobAct(act, b)) break; if (prepAct(act, b)) break; if (typeof workAct === 'function' && workAct(act, b)) break; if (typeof radarAct === 'function' && radarAct(act, b)) break; if (typeof promptAct === 'function' && promptAct(act, b)) break; if (typeof researchAct === 'function' && researchAct(act, b)) break; if (typeof ttAct === 'function' && ttAct(act, b)) break; if (typeof lifeAct === 'function' && lifeAct(act, b)) break; if (typeof calAct === 'function' && calAct(act, b)) break; if (typeof brainAct === 'function' && brainAct(act, b)) break; if (typeof odiOrbAct === 'function' && odiOrbAct(act, b)) break; if (typeof photoAct === 'function' && photoAct(act, b)) break; if (typeof musicAct === 'function' && musicAct(act, b)) break; if (typeof odiAct === 'function' && odiAct(act, b)) break; if (typeof mailAct === 'function' && mailAct(act, b)) break; if (typeof healthAct === 'function' && healthAct(act, b)) break; if (typeof knowAct === 'function' && knowAct(act, b)) break; if (typeof finAct === 'function' && finAct(act, b)) break; if (typeof docAct === 'function' && docAct(act, b)) break; if (typeof chatAct === 'function') chatAct(act, b); break;
     case 'install': if (installEvt) { installEvt.prompt(); installEvt.userChoice.finally(() => { installEvt = null; render(); }); } break;
   }
 });

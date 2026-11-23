@@ -283,3 +283,10 @@ body.kb{padding-bottom:calc(env(safe-area-inset-bottom,0px) + 12px)}
 .job-f{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:8px}
 .job-o{font-size:13px;padding:6px 0;border-top:1px dashed var(--bd)}.job-o small{display:block;color:var(--mut)}
 .job-f a.btn{text-decoration:none}
+
+/* Vorbereitung an Terminen */
+.prep-b{flex:none;display:inline-flex;align-items:center;gap:4px;padding:5px 10px;min-height:28px;border-radius:99px;border:1px solid var(--ac);background:var(--ac2);color:var(--ac);font:inherit;font-size:12px;font-weight:600;text-decoration:none;white-space:nowrap;cursor:pointer}
+.prep-b.ask{background:none;border-style:dashed;font-weight:500}
+.cal-ev .prep-b{align-self:center;margin-left:4px}
+.job-b p{white-space:pre-line}
+@media(max-width:600px){.prep-b span{display:none}.prep-b{padding:4px 8px;font-size:15px}}

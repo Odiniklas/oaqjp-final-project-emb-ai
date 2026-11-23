@@ -112,7 +112,7 @@ async function artProcessInbox() {
       });
       const docA = (Array.isArray(x.actions) ? x.actions : []).find(a => a && /^https:\/\//.test(String(a.doc || a.url || '')));
       const doc = /^https:\/\//.test(String(x.doc || x.url || '')) ? String(x.doc || x.url) : docA ? String(docA.doc || docA.url) : '';
-      S.jobLog = [{ source: String(x.source || 'Claude-Job').slice(0, 80), at: String(x.at || new Date().toISOString()), summary: String(x.summary || '').slice(0, 800), labels, doc: doc.slice(0, 300) }]
+      S.jobLog = [{ source: String(x.source || 'Claude-Job').slice(0, 80), at: String(x.at || new Date().toISOString()), summary: String(x.summary || '').slice(0, 4000), labels, doc: doc.slice(0, 300) }]
         .concat(S.jobLog || []).slice(0, 80);
       save(labels.length ? (x.source || 'Claude-Job') + ': ' + labels.length + ' Änderungen übernommen' : undefined);
       await artSaveNow();
@@ -123,7 +123,7 @@ async function artProcessInbox() {
 function jobLogCard() {
   const L = (S.jobLog || []).slice(0, 5);
   if (!L.length) return ART.db ? `<section class="card"><h2>Von deinen Claude-Jobs</h2><div class="empty">Noch nichts eingegangen. Briefing, Radare und Recherchen landen hier automatisch, sobald sie gelaufen sind.</div></section>` : '';
-  return `<section class="card"><h2>Von deinen Claude-Jobs<small>${L.length}</small></h2>${L.map((j, i) => `<div class="row"><div class="t">${esc(j.source)}${typeof jobFbButtons === 'function' ? jobFbButtons(j, i) : ''} <small>${esc(new Date(j.at).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }))}${j.summary ? ' · ' + esc(j.summary) : ''}</small>${j.labels.length ? `<ul class="acts">${j.labels.slice(0, 6).map(l => `<li>${esc(l)}</li>`).join('')}${j.labels.length > 6 ? `<li>… und ${j.labels.length - 6} weitere</li>` : ''}</ul>` : ''}</div></div>`).join('')}</section>`;
+  return `<section class="card"><h2>Von deinen Claude-Jobs<small>${L.length}</small></h2>${L.map((j, i) => `<div class="row"><div class="t">${esc(j.source)}${typeof jobFbButtons === 'function' ? jobFbButtons(j, i) : ''} <small>${esc(new Date(j.at).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }))}${j.summary ? ' · ' + esc(j.summary.length > 300 ? j.summary.slice(0, 300) + ' …' : j.summary) : ''}</small>${j.labels.length ? `<ul class="acts">${j.labels.slice(0, 6).map(l => `<li>${esc(l)}</li>`).join('')}${j.labels.length > 6 ? `<li>… und ${j.labels.length - 6} weitere</li>` : ''}</ul>` : ''}</div></div>`).join('')}</section>`;
 }
 
 /* ---------- Dokumente im Artefakt (Assets + db) ---------- */

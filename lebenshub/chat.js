@@ -19,6 +19,7 @@ const SYS = `Du bist der persönliche Assistent im „Lebenshub“ (Termine, Rou
 - Verträge, Versicherungen, Miete, Nebenkosten, Strom, Kfz, Handy, Abos, Vorsorge (auch aus Screenshots/Policen/Kontoauszügen) → set_contract mit Bereich, Anbieter, Betrag, Rhythmus, Frist/Kündigungsfrist – niemals Vertrags-, Policen-, Kunden- oder IBAN-Nummern. Gehalt/Netto → set_income.
 - Berechnungen, Bewertungen, Businesspläne, Investitionen: zuerst get_knowledge „Methoden-Baukasten: Bewertung, Investition und Businessplan“ und passende Fach-/Projekt-Einträge (z. B. Masterarbeit Batterie, Studium-Profil) lesen, Formeln daraus nutzen, Rechenweg kurz zeigen, Annahmen offenlegen; reale Zahlen aus Finanzen/Wissen bevorzugen.
 - Gehirn: Erkennst du bereichsübergreifende Zusammenhänge (z. B. Uni-Wissen ↔ Depot, Gesundheit ↔ Training, Idee ↔ Startup), speichere sie mit add_insight; nutze vorhandene Erkenntnisse beim Antworten.
+- Termine mit Gesprächs- oder Prüfungscharakter (Bewerbung, Professor, Kunde, Prüfung, Behörde): biete an, eine Vorbereitung zu erstellen. Auf „ja“ legst du sie mit add_knowledge an (Titel „Vorbereitung · <Termin> · <TT.MM.>“, Ziel, Hintergrund aus dem Hub, Fragen, mögliche Gegenfragen, Ablauf, Mitnehmen, rote Linien) und hängst sie per update_entry prep=<genau dieser Titel> an den Termin.
 - Neues mit add_entry in die passende Liste; Vorhandenes mit update_entry aktualisieren statt doppelt anlegen (IDs aus den Hub-Daten).
 - Wiederkehrendes als Routine (add_routine), Erledigtes abhaken (complete_routine bzw. Status per update_entry).
 - Angehängte Dateien: auswerten, mit store_attachment im passenden Bereich ablegen, relevante Fakten als Einträge übernehmen.
@@ -42,10 +43,10 @@ function tools() {
   return [
     { name: 'add_entry', description: 'Neuen Eintrag in einer Liste anlegen.',
       input_schema: { type: 'object', additionalProperties: false, required: ['list', 'title'], properties: {
-        list: { type: 'string', enum: listEnum() }, title: str('Kurzer Titel'), note: str('Notiz/Wert'), date: str('JJJJ-MM-TT'), time: str('Uhrzeit HH:MM bei Terminen'), status: str('Statusname der Liste') } } },
+        list: { type: 'string', enum: listEnum() }, title: str('Kurzer Titel'), note: str('Notiz/Wert'), date: str('JJJJ-MM-TT'), time: str('Uhrzeit HH:MM bei Terminen'), status: str('Statusname der Liste'), prep: str('Vorbereitung: Link zum Vorbereitungsdokument oder exakter Titel eines Wissenseintrags') } } },
     { name: 'update_entry', description: 'Eintrag ändern (nur angegebene Felder).',
       input_schema: { type: 'object', additionalProperties: false, required: ['list', 'id'], properties: {
-        list: { type: 'string', enum: listEnum() }, id: str('Eintrags-ID'), title: str('Titel'), note: str('Notiz/Wert'), date: str('JJJJ-MM-TT, leer = entfernen'), status: str('Statusname') } } },
+        list: { type: 'string', enum: listEnum() }, id: str('Eintrags-ID'), title: str('Titel'), note: str('Notiz/Wert'), date: str('JJJJ-MM-TT, leer = entfernen'), status: str('Statusname'), prep: str('Vorbereitung: Link oder exakter Titel eines Wissenseintrags, leer = entfernen') } } },
     { name: 'delete_entry', description: 'Eintrag löschen – nur auf ausdrücklichen Wunsch.',
       input_schema: { type: 'object', additionalProperties: false, required: ['list', 'id'], properties: { list: { type: 'string', enum: listEnum() }, id: str('Eintrags-ID') } } },
     { name: 'add_routine', description: 'Wiederkehrende Aufgabe anlegen.',
@@ -95,6 +96,7 @@ function runTool(name, x, turn) {
     case 'add_entry': {
       const it = { id: uid(), n: String(x.title || '').trim() || 'Eintrag', t: x.note || '', d: date(x.date), s: stIdx(x.list, x.status) };
       if (/^\d{1,2}:\d{2}$/.test(x.time || '')) { it.tm = x.time.padStart(5, '0'); if (!it.t.includes(it.tm)) it.t = (it.tm + ' Uhr' + (it.t ? ' · ' + it.t : '')); }
+      if (x.prep) it.prep = String(x.prep).slice(0, 300);
       L(x.list).push(it);
       return { label: '＋ ' + title(x.list) + ': ' + it.n, result: 'angelegt, id=' + it.id };
     }
@@ -103,6 +105,7 @@ function runTool(name, x, turn) {
       if (!it) throw new Error('Eintrag nicht gefunden');
       if (x.title) it.n = x.title; if (x.note != null) it.t = x.note; if (x.date != null) it.d = date(x.date);
       if (x.status) it.s = stIdx(x.list, x.status);
+      if (x.prep != null) { if (x.prep) it.prep = String(x.prep).slice(0, 300); else delete it.prep; }
       return { label: '✎ ' + title(x.list) + ': ' + it.n, result: 'aktualisiert' };
     }
     case 'delete_entry': {
