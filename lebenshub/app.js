@@ -12,22 +12,23 @@ const ICON = {
   today: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
   routines: '<path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/>',
   work: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/>',
+  research: '<path d="M9 3h6M10 3v6l-5.5 9.5A2 2 0 0 0 6.2 21h11.6a2 2 0 0 0 1.7-2.5L14 9V3"/><path d="M7.5 15h9"/>',
   money: '<path d="M18 7.5A6.5 6.5 0 1 0 18 16.5"/><path d="M4 10.5h9M4 13.5h9"/>',
   files: '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z"/><path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5"/>',
   chat: '<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/>',
   health: '<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8z"/>'
 };
-const TABS = [['today', 'Heute'], ['cal', 'Kalender'], ['chat', 'Odi'], ['routines', 'Routinen'], ['work', 'Arbeit'], ['money', 'Finanzen'], ['life', 'Leben'], ['health', 'Gesundheit'], ['files', 'Wissen']];
+const TABS = [['today', 'Heute'], ['cal', 'Kalender'], ['chat', 'Odi'], ['routines', 'Routinen'], ['work', 'Arbeit'], ['research', 'Forschung'], ['money', 'Finanzen'], ['life', 'Leben'], ['health', 'Gesundheit'], ['files', 'Wissen']];
 const BW = ['Entwurf', 'Versandt', 'Termin', 'Stand prüfen', 'Absage'];
 
 /* Listen-Definitionen. Inhalte kommen per Import (Startdaten/Backup) oder werden in der App angelegt. */
 const C = [
   { k: 't', tab: 'today', title: 'Termine', date: 1 },
   { k: 'n', tab: 'today', title: 'Nächste Schritte', st: ['Offen', 'Erledigt'], dn: 1, date: 1 },
-  { k: 'f', tab: 'work', title: 'Forschung & Promotion', st: ['Offen', 'Im Gespräch', 'Zusage', 'Zurückgestellt'] },
+  { k: 'f', tab: 'research', title: 'Forschung & Promotion – Kontakte', st: ['Offen', 'Im Gespräch', 'Zusage', 'Zurückgestellt'] },
   { k: 'b', tab: 'work', title: 'Bewerbungen', st: BW },
   { k: 'a', tab: 'work', title: 'Eigene Arbeit', st: ['Läuft', 'Geplant', 'Fertig'] },
-  { k: 'u', tab: 'work', title: 'Startups & Ideen', st: ['Idee', 'Validierung', 'Zurückgestellt'] },
+  { k: 'u', tab: 'research', title: 'Startups & Ideen', st: ['Idee', 'Validierung', 'Zurückgestellt'] },
   { k: 'k', tab: 'money', hideEmpty: 1, title: 'Weitere Konten (Notizen)', date: 1, hint: 'Konto/Depot mit Stand im Feld „Notiz / Wert“, Datum = Stichtag. Keine IBAN oder Kontonummern.' },
   { k: 'z', tab: 'money', hideEmpty: 1, title: 'Fixkosten & Abos', date: 1, hint: 'Betrag und Rhythmus als Notiz, Datum = nächste Fälligkeit oder Kündigungsfrist.' },
   { k: 'g', tab: 'money-alt', title: 'Finanzen im Überblick (alt)', hint: 'Eigene Angaben, ohne Gewähr. Wert im Feld „Notiz / Wert“ eintragen.' },
@@ -324,7 +325,7 @@ function render() {
   else if (TAB === 'cal') h = typeof calView === 'function' ? calView() : '';
   else if (TAB === 'settings') h = viewSettings();
   else if (TAB === 'chat') h = typeof viewChat === 'function' ? viewChat() : '';
-  else h = (TAB === 'money' && typeof finView === 'function' ? finView() : '') + (TAB === 'money' && typeof radarCard === 'function' ? radarCard() : '') + (TAB === 'health' && typeof healthView === 'function' ? healthView() : '') + (TAB === 'work' && typeof workCard === 'function' ? workCard() : '') + (TAB === 'files' ? upCard() : '') + (TAB === 'files' && typeof brainView === 'function' ? brainView() : '') + (TAB === 'files' && typeof promptCard === 'function' ? promptCard() : '') + (TAB === 'files' && typeof ttCard === 'function' ? ttCard() : '') + (TAB === 'files' && typeof promoCard === 'function' ? promoCard() : '') + (TAB === 'files' && typeof knowView === 'function' ? knowView() + '<h2 class="sect">Ablage – deine Unterlagen</h2>' : '') + C.filter(c => c.tab === TAB && !(c.hideEmpty && !S.lists[c.k].length)).map(c => listCard(c)).join('') + (typeof docsCard === 'function' && TAB !== 'files' ? docsCard(TAB) : '');
+  else h = (TAB === 'money' && typeof finView === 'function' ? finView() : '') + (TAB === 'money' && typeof radarCard === 'function' ? radarCard() : '') + (TAB === 'health' && typeof healthView === 'function' ? healthView() : '') + (TAB === 'work' && typeof workView === 'function' ? workView() : '') + (TAB === 'work' && typeof workCard === 'function' ? workCard() : '') + (TAB === 'research' && typeof researchView === 'function' ? researchView() : '') + (TAB === 'files' ? upCard() : '') + (TAB === 'files' && typeof brainView === 'function' ? brainView() : '') + (TAB === 'files' && typeof promptCard === 'function' ? promptCard() : '') + (TAB === 'files' && typeof ttCard === 'function' ? ttCard() : '') + (TAB === 'files' && typeof promoCard === 'function' ? promoCard() : '') + (TAB === 'files' && typeof knowView === 'function' ? knowView() + '<h2 class="sect">Ablage – deine Unterlagen</h2>' : '') + C.filter(c => c.tab === TAB && !(c.hideEmpty && !S.lists[c.k].length)).map(c => listCard(c)).join('') + (typeof docsCard === 'function' && TAB !== 'files' && TAB !== 'research' ? docsCard(TAB) : '');
   $('body').innerHTML = h;
   if (TAB === 'chat' && typeof scrollChat === 'function') scrollChat();
   if (TAB === 'settings') $('theme').value = S.settings.theme;
@@ -533,7 +534,7 @@ document.addEventListener('click', e => {
     case 'export': download('lebenshub-backup-' + t + '.json', 'application/json', JSON.stringify(S, null, 1)); break;
     case 'import': $('importFile').click(); break;
     case 'reset': askConfirm(ART.db ? 'Wirklich alle Hub-Daten löschen – auf allen Geräten? Mach vorher ein Backup.' : 'Wirklich alle Daten auf diesem Gerät löschen? Mach vorher ein Backup.', 'Alles löschen').then(ok => { if (ok) { const st = S.settings; S = seed(); S.settings = st; save('Zurückgesetzt'); } }); break;
-    default: if (jobAct(act, b)) break; if (prepAct(act, b)) break; if (typeof workAct === 'function' && workAct(act, b)) break; if (typeof radarAct === 'function' && radarAct(act, b)) break; if (typeof promptAct === 'function' && promptAct(act, b)) break; if (typeof researchAct === 'function' && researchAct(act, b)) break; if (typeof ttAct === 'function' && ttAct(act, b)) break; if (typeof lifeAct === 'function' && lifeAct(act, b)) break; if (typeof calAct === 'function' && calAct(act, b)) break; if (typeof brainAct === 'function' && brainAct(act, b)) break; if (typeof odiOrbAct === 'function' && odiOrbAct(act, b)) break; if (typeof photoAct === 'function' && photoAct(act, b)) break; if (typeof musicAct === 'function' && musicAct(act, b)) break; if (typeof odiAct === 'function' && odiAct(act, b)) break; if (typeof mailAct === 'function' && mailAct(act, b)) break; if (typeof healthAct === 'function' && healthAct(act, b)) break; if (typeof knowAct === 'function' && knowAct(act, b)) break; if (typeof finAct === 'function' && finAct(act, b)) break; if (typeof docAct === 'function' && docAct(act, b)) break; if (typeof chatAct === 'function') chatAct(act, b); break;
+    default: if (jobAct(act, b)) break; if (typeof pjAct === 'function' && pjAct(act, b)) break; if (prepAct(act, b)) break; if (typeof workAct === 'function' && workAct(act, b)) break; if (typeof radarAct === 'function' && radarAct(act, b)) break; if (typeof promptAct === 'function' && promptAct(act, b)) break; if (typeof researchAct === 'function' && researchAct(act, b)) break; if (typeof ttAct === 'function' && ttAct(act, b)) break; if (typeof lifeAct === 'function' && lifeAct(act, b)) break; if (typeof calAct === 'function' && calAct(act, b)) break; if (typeof brainAct === 'function' && brainAct(act, b)) break; if (typeof odiOrbAct === 'function' && odiOrbAct(act, b)) break; if (typeof photoAct === 'function' && photoAct(act, b)) break; if (typeof musicAct === 'function' && musicAct(act, b)) break; if (typeof odiAct === 'function' && odiAct(act, b)) break; if (typeof mailAct === 'function' && mailAct(act, b)) break; if (typeof healthAct === 'function' && healthAct(act, b)) break; if (typeof knowAct === 'function' && knowAct(act, b)) break; if (typeof finAct === 'function' && finAct(act, b)) break; if (typeof docAct === 'function' && docAct(act, b)) break; if (typeof chatAct === 'function') chatAct(act, b); break;
     case 'install': if (installEvt) { installEvt.prompt(); installEvt.userChoice.finally(() => { installEvt = null; render(); }); } break;
   }
 });
