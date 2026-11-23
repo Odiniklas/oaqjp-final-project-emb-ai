@@ -247,3 +247,24 @@ pre.prbody{white-space:pre-wrap;font-size:12px;max-height:40vh;overflow:auto;bac
 .chips.sugg{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
 .chips.sugg .chip{white-space:normal;text-align:left}
 .br-fact .chip{margin-right:4px}
+
+/* Bereiche als Seitenleiste links (statt unten) */
+body{padding-left:calc(max(12px,env(safe-area-inset-left,0px)) + 70px);padding-bottom:calc(env(safe-area-inset-bottom,0px) + 20px)}
+.nav{top:0;bottom:0;right:auto;left:0;width:calc(env(safe-area-inset-left,0px) + 66px);flex-direction:column;justify-content:flex-start;gap:2px;overflow-x:hidden;overflow-y:auto;border-top:0;border-right:1px solid var(--bd);padding:calc(env(safe-area-inset-top,0px) + 10px) 4px calc(env(safe-area-inset-bottom,0px) + 10px) calc(env(safe-area-inset-left,0px) + 4px)}
+.nav button{flex:0 0 auto;max-width:none;width:100%;padding:8px 0;border-radius:12px;font-size:10px;line-height:1.15}
+.nav button.on{background:var(--ac2)}
+.nav .badge{top:2px;left:calc(50% + 6px)}
+@media(min-width:700px){.nav{justify-content:flex-start}.nav button{max-width:none}}
+body.kb .nav{display:flex}
+body.kb{padding-bottom:calc(env(safe-area-inset-bottom,0px) + 12px)}
+/* Heute: Kopfkarte */
+.hero{background:linear-gradient(140deg,var(--ac2),var(--card) 70%)}
+.hero-g{font-size:20px;font-weight:700;letter-spacing:-.2px}
+.hero-s{font-size:13px;color:var(--mut);margin-top:2px}
+.hero-tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0}
+.hero-t{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:10px;border-radius:12px;border:1px solid var(--bd);background:var(--card);color:var(--tx);font:inherit;cursor:pointer;text-align:left;min-width:0}
+.hero-t b{font-size:20px;line-height:1.1}.hero-t span{font-size:11px;color:var(--mut)}
+.hero-t.warn b{color:var(--wr)}
+.hero-q{display:flex;align-items:center;gap:8px;padding:0 6px 0 12px;border:1px solid var(--bd);border-radius:12px;background:var(--card);color:var(--mut)}
+.search .hero-q input{flex:1;min-width:0;border:0;background:none;padding:10px 0;outline:none}
+.hero-up{flex:none;width:36px;height:36px;border-radius:10px;border:0;background:var(--ac);color:var(--bg);display:grid;place-items:center;cursor:pointer}

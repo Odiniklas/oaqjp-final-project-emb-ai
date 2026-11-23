@@ -100,7 +100,17 @@ function searchCard() {
     if (typeof TT !== 'undefined') TT.items.forEach(x => { if (x.t && (x.t + ' ' + (x.k || '') + ' ' + (x.n || '')).toLowerCase().includes(q)) hits.push(`<div class="row"><a class="t" href="https://www.tiktok.com/@/video/${x.v}" target="_blank" rel="noopener">${esc(x.t)}<small>TikTok${x.k ? ' · ' + esc(x.k) : ''}</small></a></div>`); });
     res = hits.slice(0, 40).join('') || '<div class="empty">Nichts gefunden.</div>';
   }
-  return `<section class="card wide search"><input type="search" id="hubq" placeholder="Im Hub suchen …" value="${esc(HUBQ)}" autocomplete="off" enterkeyhint="search">${res}</section>`;
+  const t = H.today(), hr = new Date().getHours(), greet = hr < 11 ? 'Guten Morgen' : hr < 18 ? 'Hallo' : 'Guten Abend';
+  const open = dueRoutines(t).length, items = [];
+  C.forEach(c => S.lists[c.k].forEach(it => { if (it.d && it.d >= t && !isDone(c, it)) items.push(it); }));
+  items.sort((a, b) => a.d.localeCompare(b.d));
+  const todayN = items.filter(it => it.d === t).length, next = items.find(it => it.d > t) || items[0];
+  const name = (S.settings && S.settings.name) || '';
+  const tile = (tab, n, l, warn) => `<button class="hero-t${warn ? ' warn' : ''}" data-act="tab" data-v="${tab}"><b>${n}</b><span>${l}</span></button>`;
+  return `<section class="card wide hero search">
+    <div class="hero-h"><div><div class="hero-g">${greet}${name ? ', ' + esc(name) : ''} 👋</div><div class="hero-s">${next ? 'Als Nächstes: ' + esc(next.n.slice(0, 60)) + ' · ' + rel(next.d, t) : 'Keine Termine in Sicht'}</div></div></div>
+    <div class="hero-tiles">${tile('routines', open, open === 1 ? 'Routine offen' : 'Routinen offen', open)}${tile('cal', todayN, todayN === 1 ? 'Termin heute' : 'Termine heute')}${tile('chat', '💬', 'Odi fragen')}</div>
+    <div class="hero-q"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input type="search" id="hubq" placeholder="Im Hub suchen …" value="${esc(HUBQ)}" autocomplete="off" enterkeyhint="search" aria-label="Im Hub suchen"><button class="hero-up" data-act="dup" aria-label="Dokumente hochladen"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg></button></div>${res}</section>`;
 }
 function routineRow(r, t) {
   const st = H.state(r, t);
@@ -163,7 +173,7 @@ function viewToday() {
   const doneT = S.routines.filter(r => r.last === t && !H.state(r, t).due);
   const total = due.length + doneT.length;
   const pct = total ? Math.round(doneT.length / total * 100) : 100;
-  let h = searchCard() + upCard() + (typeof weatherCard === 'function' ? weatherCard() : '') + (typeof calTodayCard === 'function' ? calTodayCard() : '') + (typeof glanceCard === 'function' ? glanceCard() : '') + (typeof musicCard === 'function' ? musicCard() : '') + `<section class="card wide"><h2>Heute zu tun<small>${doneT.length} von ${total} erledigt</small></h2><div class="bar"><i style="width:${pct}%"></i></div>
+  let h = searchCard() + (typeof weatherCard === 'function' ? weatherCard() : '') + (typeof calTodayCard === 'function' ? calTodayCard() : '') + (typeof glanceCard === 'function' ? glanceCard() : '') + (typeof musicCard === 'function' ? musicCard() : '') + `<section class="card wide"><h2>Heute zu tun<small>${doneT.length} von ${total} erledigt</small></h2><div class="bar"><i style="width:${pct}%"></i></div>
     ${due.map(r => routineRow(r, t)).join('')}${doneT.map(r => routineRow(r, t)).join('')}
     ${!total ? '<div class="empty">Heute stehen keine Routinen an.</div>' : !due.length ? '<div class="empty">Alles erledigt. Gute Arbeit!</div>' : ''}</section>`;
 
