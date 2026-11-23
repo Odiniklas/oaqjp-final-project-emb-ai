@@ -91,3 +91,49 @@ function mailAct(act, b) {
   if (act === 'mdraft') { mailDraft(+b.dataset.v); return true; }
   return false;
 }
+
+/* Odi-Werkzeuge für Gmail (nur lesen und Entwürfe anlegen – nie senden) */
+const MAIL_NAMES = ['search_mail', 'read_mail', 'draft_mail'];
+function mailTools() {
+  if (typeof ART === 'undefined' || !ART.mcp) return [];
+  const s = d => ({ type: 'string', description: d });
+  return [
+    { name: 'search_mail', description: 'In Gmail suchen (Posteingang, Gesendet, Archiv). Liefert Threads mit Betreff, Absender, Datum und Vorschau. Für Inhalte danach read_mail.',
+      input_schema: { type: 'object', additionalProperties: false, required: ['query'], properties: { query: s('Gmail-Suchsyntax, z. B. „from:firma.de newer_than:30d“, „Bewerbung Absage“, „in:sent einklang“'), max: { type: 'number', description: 'höchstens 20' } } } },
+    { name: 'read_mail', description: 'Einen Gmail-Thread vollständig lesen (alle Nachrichten im Klartext).',
+      input_schema: { type: 'object', additionalProperties: false, required: ['threadId'], properties: { threadId: s('Thread-ID aus search_mail') } } },
+    { name: 'draft_mail', description: 'Antwort oder neue Mail als ENTWURF in Gmail anlegen. Wird nie gesendet – der Nutzer prüft und sendet selbst.',
+      input_schema: { type: 'object', additionalProperties: false, required: ['subject', 'body'], properties: { to: s('Empfänger-Adresse'), subject: s('Betreff'), body: s('Text'), replyToMessageId: s('Nachrichten-ID, wenn es eine Antwort ist') } } }
+  ];
+}
+function mailErr(e) {
+  const c = e && e.code;
+  return c === 'not_granted' ? 'Gmail-Zugriff wurde im Hub abgelehnt – in den Berechtigungen des Hubs (Menü oben) erlauben.'
+    : c === 'server_not_connected' ? 'Gmail ist in Claude nicht verbunden – claude.ai → Einstellungen → Connectors → Gmail verbinden.'
+    : c === 'needs_reauth' ? 'Gmail muss in den Claude-Einstellungen neu verbunden werden.'
+    : c === 'not_in_manifest' ? 'Dieses Gmail-Werkzeug ist für den Hub noch nicht freigegeben.'
+    : 'Gmail-Fehler: ' + ((e && (e.message || c)) || 'unbekannt');
+}
+async function mailToolRun(name, x) {
+  if (!ART.mcp) throw new Error('Gmail ist hier nicht verfügbar – bitte den Lebenshub in Claude öffnen.');
+  try {
+    if (name === 'search_mail') {
+      const r = await ART.mcp.callTool(GMAIL, 'search_threads', { query: String(x.query || '').slice(0, 300), pageSize: Math.min(20, Math.max(1, +x.max || 10)), view: 'THREAD_VIEW_SUMMARY' }, { cache: false });
+      const P = r && r.payload != null ? r.payload : r, T = (P && P.threads) || [];
+      const out = T.map(t => { const m = (t.messages || [])[0] || {}; return { threadId: t.id, messages: t.messageCount || (t.messages || []).length, from: typeof m.sender === 'string' ? m.sender : (m.sender && (m.sender.email || m.sender.emailAddress)) || '', date: String(m.date || '').slice(0, 16), subject: m.subject || '', preview: String(m.snippet || '').slice(0, 240), messageId: m.id }; });
+      return { label: '✉️ Gmail durchsucht: „' + String(x.query).slice(0, 40) + '“ (' + out.length + ')', result: JSON.stringify(out) || '[]' };
+    }
+    if (name === 'read_mail') {
+      const r = await ART.mcp.callTool(GMAIL, 'get_thread', { threadId: String(x.threadId || ''), messageFormat: 'PLAIN_TEXT' }, { cache: false });
+      const P = r && r.payload != null ? r.payload : r, M = (P && P.messages) || [];
+      let budget = 9000;
+      const out = M.map(m => { const body = String(m.plaintextBody || m.snippet || '').replace(/\n{3,}/g, '\n\n'); const take = body.slice(0, Math.max(400, Math.floor(budget / Math.max(1, M.length)))); budget -= take.length; return { messageId: m.id, from: typeof m.sender === 'string' ? m.sender : '', date: String(m.date || '').slice(0, 16), subject: m.subject || '', body: take }; });
+      return { label: '✉️ Mail gelesen: ' + ((out[0] && out[0].subject) || x.threadId).slice(0, 50), result: JSON.stringify(out) };
+    }
+    if (name === 'draft_mail') {
+      await ART.mcp.callTool(GMAIL, 'create_draft', Object.assign({ to: x.to ? [String(x.to)] : [], subject: String(x.subject || ''), body: String(x.body || '') }, x.replyToMessageId ? { replyToMessageId: String(x.replyToMessageId) } : {}), { cache: false });
+      return { label: '✉️ Entwurf in Gmail: ' + String(x.subject || '').slice(0, 50), result: 'Entwurf gespeichert – nicht gesendet.' };
+    }
+  } catch (e) { throw new Error(mailErr(e)); }
+  throw new Error('Unbekanntes Mail-Werkzeug');
+}
