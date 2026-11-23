@@ -1,0 +1,178 @@
+{
+  "id": "solarspitzen-null-euro",
+  "topic": "Solarspitzengesetz: Warum neue PV-Anlagen manchmal 0 € bekommen",
+  "priority": 0.8,
+  "createdBy": "claude",
+  "scenes": [
+    {
+      "id": "hook",
+      "say": "Neue Solaranlage? Dann bekommst du für manchen Strom: null Euro.",
+      "visual": {
+        "type": "title",
+        "big": "0 €",
+        "small": "für manchen Solarstrom"
+      },
+      "transition": "zoom"
+    },
+    {
+      "id": "gesetz",
+      "say": "Seit dem 25. Februar 2025 gilt das Solarspitzengesetz.",
+      "visual": {
+        "type": "stat",
+        "big": "25.02.2025",
+        "small": "Solarspitzengesetz in Kraft"
+      },
+      "transition": "slide",
+      "claims": [
+        "c1"
+      ]
+    },
+    {
+      "id": "negativ",
+      "say": "Ist der Börsenstrompreis negativ, gibt es für neue Anlagen keine Einspeisevergütung.",
+      "visual": {
+        "type": "bars",
+        "title": "Börsenpreis",
+        "values": [
+          6,
+          3,
+          -2,
+          -4,
+          1,
+          7
+        ],
+        "labels": [
+          "8",
+          "10",
+          "12",
+          "14",
+          "16",
+          "18 Uhr"
+        ],
+        "note": "negativ = 0 € Vergütung"
+      },
+      "transition": "slide",
+      "claims": [
+        "c2"
+      ]
+    },
+    {
+      "id": "anhang",
+      "say": "Die Zeit wird zwar an die zwanzig Jahre Förderung hinten angehängt. Geld gibt es in dem Moment aber nicht.",
+      "visual": {
+        "type": "list",
+        "title": "Was passiert?",
+        "items": [
+          "Vergütung pausiert",
+          "Zeit wird hinten angehängt",
+          "Jetzt: kein Geld"
+        ]
+      },
+      "transition": "fade",
+      "claims": [
+        "c3"
+      ]
+    },
+    {
+      "id": "sechzig",
+      "say": "Und ohne Smart Meter dürfen kleinere Anlagen nur sechzig Prozent ihrer Leistung einspeisen.",
+      "visual": {
+        "type": "stat",
+        "big": "60 %",
+        "small": "max. Einspeisung ohne Smart Meter"
+      },
+      "transition": "zoom",
+      "claims": [
+        "c4"
+      ]
+    },
+    {
+      "id": "loesung",
+      "say": "Die Lösung: Strom mittags speichern und abends selbst nutzen.",
+      "visual": {
+        "type": "flow",
+        "items": [
+          {
+            "icon": "sun",
+            "label": "Mittag"
+          },
+          {
+            "icon": "battery",
+            "label": "Speicher"
+          },
+          {
+            "icon": "moon",
+            "label": "Abend"
+          }
+        ]
+      },
+      "transition": "slide"
+    },
+    {
+      "id": "cta",
+      "say": "Folge für mehr Energie einfach erklärt. Und schreib mir, welches Thema als Nächstes kommt!",
+      "visual": {
+        "type": "cta",
+        "big": "Folgen",
+        "small": "Energie einfach erklärt"
+      },
+      "transition": "fade"
+    }
+  ],
+  "claims": [
+    {
+      "id": "c1",
+      "text": "Das Solarspitzengesetz ist seit dem 25.02.2025 in Kraft.",
+      "sources": [
+        "s1",
+        "s2"
+      ]
+    },
+    {
+      "id": "c2",
+      "text": "Neue PV-Anlagen erhalten bei negativen Börsenstrompreisen keine Einspeisevergütung (§ 51 EEG).",
+      "sources": [
+        "s1",
+        "s2"
+      ]
+    },
+    {
+      "id": "c3",
+      "text": "Die ausgefallene Vergütungszeit wird an das Ende der 20-jährigen Förderdauer angehängt.",
+      "sources": [
+        "s1"
+      ]
+    },
+    {
+      "id": "c4",
+      "text": "Ohne Smart Meter ist die Einspeisung kleiner Neuanlagen (unter 100 kWp) auf 60 % der Leistung begrenzt.",
+      "sources": [
+        "s1"
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "id": "s1",
+      "url": "https://www.co2online.de/modernisieren-und-bauen/photovoltaik/solarspitzengesetz/",
+      "title": "Das neue Solarspitzengesetz",
+      "publisher": "co2online",
+      "verified": false
+    },
+    {
+      "id": "s2",
+      "url": "https://www.zfk.de/energie/strom/keine-verguetung-bei-negativpreisen-das-koennte-ein-boeses-erwachen-geben",
+      "title": "Keine Vergütung bei Negativpreisen",
+      "publisher": "ZfK",
+      "verified": false
+    }
+  ],
+  "caption": "Neue Solaranlage – und trotzdem mal 0 €? Das Solarspitzengesetz erklärt in 30 Sekunden. Quellen in den Kommentaren. Stimme KI-generiert.",
+  "hashtags": [
+    "#solarspitzengesetz",
+    "#photovoltaik",
+    "#stromspeicher"
+  ],
+  "assets": [],
+  "aiDisclosure": true
+}

@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Lebenshub</title>
+<meta name="description" content="Persönlicher Hub für Termine, Routinen, Arbeit, Finanzen und Gesundheit.">
+<meta name="theme-color" content="#0e7c66">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Lebenshub">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="top">
+  <div><h1>Lebenshub</h1><p class="sub" id="date"></p></div>
+  <div class="top-btns"><button class="icon-btn up" data-act="dup" aria-label="Dokumente hochladen"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg></button>
+  <button class="icon-btn" data-act="tab" data-v="settings" aria-label="Einstellungen">
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+  </button></div>
+</header>
+<main id="body" class="grid"></main>
+<nav class="nav" id="nav" aria-label="Bereiche"></nav>
+<dialog id="dlg"><form id="dlgf" method="dialog"></form></dialog>
+<input type="file" id="importFile" accept="application/json,.json" hidden>
+<input type="file" id="docFile" multiple hidden>
+<input type="file" id="chatFile" multiple hidden>
+<input type="file" id="ttFile" accept=".json,.zip,.txt,application/json,application/zip" hidden>
+<input type="file" id="photoFile" accept="image/*" multiple hidden>
+<div id="toast" class="toast" role="status" hidden></div>
+<script src="sched.js"></script>
+<script src="unpack.js"></script>
+<script src="docs.js"></script>
+<script src="fin.js"></script>
+<script src="radar.js"></script>
+<script src="finplan.js"></script>
+<script src="life.js"></script>
+<script src="pension.js"></script>
+<script src="know.js"></script>
+<script src="tiktok.js"></script>
+<script src="prompts_data.js"></script>
+<script src="prompts.js"></script>
+<script src="research.js"></script>
+<script src="work.js"></script>
+<script src="projects.js"></script>
+<script src="brain.js"></script>
+<script src="health.js"></script>
+<script src="mail.js"></script>
+<script src="weather.js"></script>
+<script src="music.js"></script>
+<script src="photos.js"></script>
+<script src="cal.js"></script>
+<script src="chat.js"></script>
+<script src="mind.js"></script>
+<script src="voice.js"></script>
+<script src="store.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

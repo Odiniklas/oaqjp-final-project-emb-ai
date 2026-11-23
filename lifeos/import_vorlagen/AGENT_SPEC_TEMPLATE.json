@@ -1,0 +1,15 @@
+{
+  "name": "research-scout-example",
+  "purpose": "Begrenzte lokale Quellensichtung",
+  "status": "draft",
+  "inputs": ["Freigegebene projektbezogene Dateien"],
+  "outputs": ["Evidenzmatrix", "Offene Fragen"],
+  "allowed_tools": ["Read", "Grep", "Glob"],
+  "forbidden_actions": ["External send", "Production changes", "Payments"],
+  "allowed_data": ["public", "selected personal"],
+  "max_turns": 8,
+  "max_estimated_cost_eur": 1,
+  "acceptance_tests": ["No fabricated sources", "No secrets exposed", "Correct uncertainty status"],
+  "version": "0.1.0",
+  "approved_by_user": false
+}

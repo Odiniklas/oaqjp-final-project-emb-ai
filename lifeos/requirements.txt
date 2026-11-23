@@ -1,0 +1,3 @@
+# Im lokalen, API-freien Modus werden keine Drittanbieterpakete benötigt.
+# Für den optionalen --llm-Aufruf:
+anthropic>=0.40

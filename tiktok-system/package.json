@@ -1,0 +1,25 @@
+{
+  "name": "tiktok-content-system",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Modulares System: Themen → Skript → Voiceover → Remotion-Video → QA → Freigabe → Buffer",
+  "scripts": {
+    "test": "node --test tests/unit/*.test.js",
+    "test:e2e": "node --test --test-timeout=600000 tests/e2e/*.test.js",
+    "validate": "node src/cli.js validate",
+    "produce:test": "node src/cli.js produce content/examples/solarspitzen.json --mode A",
+    "check": "node src/cli.js check"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@remotion/bundler": "4.0.545",
+    "@remotion/cli": "4.0.545",
+    "@remotion/renderer": "4.0.545",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "remotion": "4.0.545"
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "name": "TikTok-Content-System – Fehlermeldung",
+  "nodes": [
+    {
+      "parameters": {},
+      "name": "Fehler-Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{ $env.NOTIFY_FROM }}",
+        "toEmail": "={{ $env.NOTIFY_TO }}",
+        "subject": "=TikTok-System: Fehler in {{ $json.workflow.name }}",
+        "emailFormat": "text",
+        "text": "=Schritt: {{ $json.execution.lastNodeExecuted }}\nFehler: {{ $json.execution.error.message }}\nLink: {{ $json.execution.url }}"
+      },
+      "name": "Fehler melden",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        220,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Fehler-Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fehler melden",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "timezone": "Europe/Berlin"
+  }
+}

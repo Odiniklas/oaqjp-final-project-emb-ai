@@ -1,0 +1,13 @@
+#cloud-config
+# Beim Erstellen des Servers (z. B. Hetzner Cloud → „Cloud config“) komplett einfügen.
+# Vorher die zwei Platzhalter ersetzen. Die Datei enthält danach deinen Bot-Token: nicht teilen, nicht ins Repo legen.
+write_files:
+  - path: /root/openjarvis.env
+    permissions: "0600"
+    content: |
+      TELEGRAM_BOT_TOKEN=HIER_BOT_TOKEN_VON_BOTFATHER
+      TELEGRAM_CHAT_ID=HIER_DEINE_CHAT_ID
+      MODEL=qwen3:4b
+runcmd:
+  - curl -fsSL -o /root/setup.sh https://raw.githubusercontent.com/odiniklas/oaqjp-final-project-emb-ai/claude/laughing-davinci-nplchy/openjarvis-server/setup.sh
+  - bash -c 'set -a; . /root/openjarvis.env; set +a; bash /root/setup.sh > /root/setup.log 2>&1'
