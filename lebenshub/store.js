@@ -110,8 +110,10 @@ async function artProcessInbox() {
       (Array.isArray(x.actions) ? x.actions : []).slice(0, 60).forEach(a => {
         try { labels.push(runTool(String(a.tool || ''), a, turn).label); } catch (e) { labels.push('⚠︎ ' + (a.tool || '?') + ': ' + e.message); }
       });
-      S.jobLog = [{ source: String(x.source || 'Claude-Job').slice(0, 80), at: String(x.at || new Date().toISOString()), summary: String(x.summary || '').slice(0, 800), labels }]
-        .concat(S.jobLog || []).slice(0, 30);
+      const docA = (Array.isArray(x.actions) ? x.actions : []).find(a => a && /^https:\/\//.test(String(a.doc || a.url || '')));
+      const doc = /^https:\/\//.test(String(x.doc || x.url || '')) ? String(x.doc || x.url) : docA ? String(docA.doc || docA.url) : '';
+      S.jobLog = [{ source: String(x.source || 'Claude-Job').slice(0, 80), at: String(x.at || new Date().toISOString()), summary: String(x.summary || '').slice(0, 800), labels, doc: doc.slice(0, 300) }]
+        .concat(S.jobLog || []).slice(0, 80);
       save(labels.length ? (x.source || 'Claude-Job') + ': ' + labels.length + ' Änderungen übernommen' : undefined);
       await artSaveNow();
       try { await ref.delete(); } catch (e) { /* nächster Durchlauf */ }

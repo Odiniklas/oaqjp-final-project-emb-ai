@@ -196,6 +196,40 @@ function viewToday() {
   return h;
 }
 
+/* Ergebnisse der Claude-Jobs je Job gruppiert (Routinen-Tab) */
+let JOBOPEN = '';
+const jobName = j => String(j.source || 'Claude-Job').replace(/^Claude\s*[–-]\s*/, '');
+const jobWhen = at => { const d = new Date(at); if (isNaN(d)) return ''; const t = H.today(), ds = at.slice(0, 10); return (ds === t ? 'heute' : ds === H.add(t, -1) ? 'gestern' : d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })) + ', ' + d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }); };
+const JOB_RE = { themenbriefing: /themenbriefing|briefing/i, aktienradar: /aktienradar|aktienliste|radar-ampel/i, karriereradar: /karriere|promotion/i, startupradar: /startup|zukunftsradar/i };
+function jobsFor(r) {
+  const key = r.claude && r.claude.key, re = JOB_RE[key] || new RegExp((key || r.n.split(/\s+/)[0]).replace(/[^\wäöüß]/gi, ''), 'i');
+  return (S.jobLog || []).filter(j => re.test(j.source)).sort((a, b) => String(b.at).localeCompare(String(a.at)));
+}
+function jobsCard() {
+  const L = (S.jobLog || []).slice().sort((a, b) => String(b.at).localeCompare(String(a.at)));
+  if (!L.length) return `<section class="card wide jobs"><h2>Was Claude für dich gemacht hat</h2><div class="empty">Noch keine Ergebnisse. Sobald ein Claude-Job gelaufen ist, siehst du hier, was er gefunden und geändert hat.</div></section>`;
+  const G = [];
+  L.forEach(j => { const n = jobName(j); let g = G.find(x => x.n === n); if (!g) G.push(g = { n, runs: [] }); g.runs.push(j); });
+  const fb = j => typeof jobFbButtons === 'function' ? jobFbButtons(j, S.jobLog.indexOf(j)) : '';
+  return `<section class="card wide jobs"><h2>Was Claude für dich gemacht hat<small>${G.length} Jobs · ${L.length} Läufe</small></h2>
+    <div class="hint">Tippe auf einen Job: Du siehst, was beim letzten Lauf herauskam, welche Änderungen im Hub übernommen wurden und die früheren Läufe.</div>
+    ${G.map(g => { const j = g.runs[0];
+      return `<details class="job"${JOBOPEN === g.n ? ' open' : ''} data-job="${esc(g.n)}"><summary><span class="job-n"><b>${esc(g.n)}</b><small>${esc(jobWhen(j.at))}${g.runs.length > 1 ? ' · ' + g.runs.length + ' Läufe' : ''}${j.labels.length ? ' · ' + j.labels.length + (j.labels.length === 1 ? ' Änderung' : ' Änderungen') : ''}</small></span><span class="job-x">›</span></summary>
+        <div class="job-b">${j.summary ? `<p>${esc(j.summary)}</p>` : ''}
+          ${j.labels.length ? `<div class="job-h">Im Hub übernommen</div><ul class="acts">${j.labels.map(l => `<li>${esc(l)}</li>`).join('')}</ul>` : ''}
+          <div class="job-f">${j.doc ? `<a class="btn ghost" href="${esc(j.doc)}" target="_blank" rel="noopener">Bericht öffnen</a>` : ''}<button class="btn ghost" data-act="jobAsk" data-v="${esc(g.n)}">Mit Odi besprechen</button>${fb(j)}</div>
+          ${g.runs.length > 1 ? `<div class="job-h">Frühere Läufe</div>${g.runs.slice(1, 8).map(o => `<div class="job-o"><b>${esc(jobWhen(o.at))}</b> ${esc(o.summary.slice(0, 200))}${o.summary.length > 200 ? ' …' : ''}${o.labels.length ? `<small>${o.labels.length} ${o.labels.length === 1 ? 'Änderung' : 'Änderungen'}</small>` : ''}</div>`).join('')}` : ''}</div></details>`; }).join('')}</section>`;
+}
+function jobAct(act, b) {
+  if (act === 'jobOpen') { JOBOPEN = b.dataset.v; render(); const d = document.querySelector('details.job[open]'); if (d) d.scrollIntoView({ behavior: 'smooth', block: 'start' }); return true; }
+  if (act === 'jobAsk') {
+    const g = (S.jobLog || []).filter(j => jobName(j) === b.dataset.v).sort((a, c) => String(c.at).localeCompare(String(a.at)))[0]; if (!g) return true;
+    chatDraft = `Erkläre mir kurz das letzte Ergebnis von „${b.dataset.v}“ (${jobWhen(g.at)}) und was ich jetzt konkret tun sollte:\n\n${g.summary}\n\nÜbernommen: ${g.labels.join('; ')}`;
+    TAB = 'chat'; try { sessionStorage.setItem(K + '-tab', 'chat'); } catch (e) { /* egal */ }
+    render(); scrollTo(0, 0); toast('Im Odi-Feld – prüfen und absenden'); return true;
+  }
+  return false;
+}
 function viewRoutines() {
   const t = H.today();
   const cl = S.routines.filter(r => r.claude);
@@ -203,8 +237,11 @@ function viewRoutines() {
     <div class="hint">Claude führt diese Aufgaben zu den genannten Zeiten selbst aus und schickt dir das Ergebnis. Die App erinnert dich danach, es zu lesen und umzusetzen.</div>
     ${cl.map(r => {
       const nx = H.nextOcc(r, H.add(t, -1));
-      return routineRow(r, t) + `<div class="cinfo"><span>Ergebnis: ${esc(r.claude.out)}</span><span>Nächster Lauf: ${nx ? rel(nx, t) : '—'}</span></div>`;
+      const j = jobsFor(r)[0];
+      return routineRow(r, t) + `<div class="cinfo"><span>Ergebnis: ${esc(r.claude.out)}</span><span>Nächster Lauf: ${nx ? rel(nx, t) : '—'}</span></div>`
+        + (j ? `<button class="cres" data-act="jobOpen" data-v="${esc(jobName(j))}"><b>Zuletzt ${esc(jobWhen(j.at))}:</b> ${esc(j.summary.slice(0, 160))}${j.summary.length > 160 ? ' …' : ''}<span>Ergebnis ansehen ›</span></button>` : '<div class="cres none">Noch kein Ergebnis eingegangen.</div>');
     }).join('') || '<div class="empty">Keine.</div>'}</section>`;
+  h += jobsCard();
   const grp = [['daily', 'Täglich'], ['weekly', 'Wöchentlich'], ['monthly', 'Monatlich']];
   h += grp.map(([f, l]) => {
     const rs = S.routines.filter(r => r.freq === f && !r.claude);
@@ -465,7 +502,7 @@ document.addEventListener('click', e => {
     case 'export': download('lebenshub-backup-' + t + '.json', 'application/json', JSON.stringify(S, null, 1)); break;
     case 'import': $('importFile').click(); break;
     case 'reset': askConfirm(ART.db ? 'Wirklich alle Hub-Daten löschen – auf allen Geräten? Mach vorher ein Backup.' : 'Wirklich alle Daten auf diesem Gerät löschen? Mach vorher ein Backup.', 'Alles löschen').then(ok => { if (ok) { const st = S.settings; S = seed(); S.settings = st; save('Zurückgesetzt'); } }); break;
-    default: if (typeof workAct === 'function' && workAct(act, b)) break; if (typeof radarAct === 'function' && radarAct(act, b)) break; if (typeof promptAct === 'function' && promptAct(act, b)) break; if (typeof researchAct === 'function' && researchAct(act, b)) break; if (typeof ttAct === 'function' && ttAct(act, b)) break; if (typeof lifeAct === 'function' && lifeAct(act, b)) break; if (typeof calAct === 'function' && calAct(act, b)) break; if (typeof brainAct === 'function' && brainAct(act, b)) break; if (typeof odiOrbAct === 'function' && odiOrbAct(act, b)) break; if (typeof photoAct === 'function' && photoAct(act, b)) break; if (typeof musicAct === 'function' && musicAct(act, b)) break; if (typeof odiAct === 'function' && odiAct(act, b)) break; if (typeof mailAct === 'function' && mailAct(act, b)) break; if (typeof healthAct === 'function' && healthAct(act, b)) break; if (typeof knowAct === 'function' && knowAct(act, b)) break; if (typeof finAct === 'function' && finAct(act, b)) break; if (typeof docAct === 'function' && docAct(act, b)) break; if (typeof chatAct === 'function') chatAct(act, b); break;
+    default: if (jobAct(act, b)) break; if (typeof workAct === 'function' && workAct(act, b)) break; if (typeof radarAct === 'function' && radarAct(act, b)) break; if (typeof promptAct === 'function' && promptAct(act, b)) break; if (typeof researchAct === 'function' && researchAct(act, b)) break; if (typeof ttAct === 'function' && ttAct(act, b)) break; if (typeof lifeAct === 'function' && lifeAct(act, b)) break; if (typeof calAct === 'function' && calAct(act, b)) break; if (typeof brainAct === 'function' && brainAct(act, b)) break; if (typeof odiOrbAct === 'function' && odiOrbAct(act, b)) break; if (typeof photoAct === 'function' && photoAct(act, b)) break; if (typeof musicAct === 'function' && musicAct(act, b)) break; if (typeof odiAct === 'function' && odiAct(act, b)) break; if (typeof mailAct === 'function' && mailAct(act, b)) break; if (typeof healthAct === 'function' && healthAct(act, b)) break; if (typeof knowAct === 'function' && knowAct(act, b)) break; if (typeof finAct === 'function' && finAct(act, b)) break; if (typeof docAct === 'function' && docAct(act, b)) break; if (typeof chatAct === 'function') chatAct(act, b); break;
     case 'install': if (installEvt) { installEvt.prompt(); installEvt.userChoice.finally(() => { installEvt = null; render(); }); } break;
   }
 });
@@ -510,3 +547,5 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:' && !window.cla
   navigator.serviceWorker.register('sw.js').then(() => syncData()).then(checkNotify).catch(() => {});
 }
 try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) { /* egal */ }
+
+document.addEventListener('toggle', e => { const d = e.target; if (d && d.matches && d.matches('details.job')) { if (d.open) JOBOPEN = d.dataset.job; else if (JOBOPEN === d.dataset.job) JOBOPEN = ''; } }, true);

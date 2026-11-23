@@ -268,3 +268,18 @@ body.kb{padding-bottom:calc(env(safe-area-inset-bottom,0px) + 12px)}
 .hero-q{display:flex;align-items:center;gap:8px;padding:0 6px 0 12px;border:1px solid var(--bd);border-radius:12px;background:var(--card);color:var(--mut)}
 .search .hero-q input{flex:1;min-width:0;border:0;background:none;padding:10px 0;outline:none}
 .hero-up{flex:none;width:36px;height:36px;border-radius:10px;border:0;background:var(--ac);color:var(--bg);display:grid;place-items:center;cursor:pointer}
+
+/* Routinen: Ergebnisse der Claude-Jobs */
+.cres{display:block;width:calc(100% - 36px);margin:0 0 10px 36px;padding:8px 10px;border-radius:10px;border:1px solid var(--bd);background:var(--ac2);color:var(--tx);font:inherit;font-size:13px;text-align:left;cursor:pointer}
+.cres span{display:block;color:var(--ac);font-weight:600;font-size:12px;margin-top:4px}
+.cres.none{background:none;color:var(--mut);cursor:default;border-style:dashed}
+.job{border-top:1px solid var(--bd)}
+.job summary{list-style:none;display:flex;align-items:center;gap:8px;padding:10px 0;cursor:pointer}
+.job summary::-webkit-details-marker{display:none}
+.job-n{flex:1;min-width:0}.job-n b{display:block}.job-n small{color:var(--mut);font-size:12px}
+.job-x{color:var(--mut);font-size:20px;transition:transform .15s}.job[open] .job-x{transform:rotate(90deg)}
+.job-b{padding:0 0 12px}.job-b p{margin:0 0 6px;font-size:14px}
+.job-h{font-size:12px;font-weight:600;color:var(--mut);text-transform:uppercase;letter-spacing:.3px;margin:10px 0 2px}
+.job-f{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:8px}
+.job-o{font-size:13px;padding:6px 0;border-top:1px dashed var(--bd)}.job-o small{display:block;color:var(--mut)}
+.job-f a.btn{text-decoration:none}
