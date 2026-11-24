@@ -238,6 +238,11 @@ async function page(browser, url, seed, extra) {
       ok(r.cats['REWE Markt GmbH'] === 'lebensmittel' && r.cats['Trade Republic Bank GmbH'] === 'sparen' && r.inc === 3100 && r.save === 200, 'Kategorien und Monatswerte stimmen', r);
       ok(r.rec.some(x => /NETFLIX/.test(x)) && r.rec.some(x => /Hausverwaltung/.test(x)), 'wiederkehrende Abbuchungen erkannt', r.rec);
       ok(r.card && r.w && r.ctx, 'Girokonto-Karte in Finanzen, kein seitliches Scrollen, Odi sieht die Monatsübersicht', r);
+      const o = await p.evaluate(() => { const before = S.fin.tx.length;
+        const r1 = runTool('add_transactions', { items: [{ date: '2026-11-20', amount: -45.5, payee: 'EDEKA Muster', type: 'Kartenzahlung' }, { date: '2026-11-21', amount: -30, payee: 'Erika Beispiel', type: 'Überweisung' }, { date: '2026-11-02', amount: -780, payee: 'Hausverwaltung Muster GmbH' }] });
+        const r2 = runTool('add_transactions', { items: [{ date: '2026-11-20', amount: -45.5, payee: 'EDEKA Muster' }] });
+        return { added: S.fin.tx.length - before, r1: r1.result, r2: r2.result, privat: !JSON.stringify(S.fin.tx).includes('Erika'), edeka: (S.fin.tx.find(t => /EDEKA/.test(t.p)) || {}).c }; });
+      ok(o.added === 2 && /1 doppelt/.test(o.r2) && o.privat && o.edeka === 'lebensmittel', 'Odi trägt Umsätze aus Screenshots ein: Dubletten erkannt, Privatnamen entfernt', o);
       ok(errs.length === 0, 'keine JavaScript-Fehler', errs.slice(0, 3));
       await ctx.close();
     }

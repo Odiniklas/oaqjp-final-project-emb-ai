@@ -156,3 +156,26 @@ function bankAct(act, b) {
 document.addEventListener('change', e => {
   if (e.target.id === 'bankFile' && e.target.files.length) { const fl = Array.from(e.target.files); e.target.value = ''; bankImportFiles(fl); }
 });
+/* ---------- Werkzeug für Odi: Umsätze aus Screenshots oder Kontoauszug-PDF ---------- */
+function bankTool(name, x) {
+  if (name !== 'add_transactions') return null;
+  const L = Array.isArray(x.items) ? x.items.slice(0, 300) : [];
+  const F = bank(), have = new Set(F.tx.map(t => t.h));
+  let n = 0, dup = 0;
+  for (const it of L) {
+    const d = bankDate(it.date) || (/^\d{4}-\d{2}-\d{2}$/.test(it.date || '') ? it.date : ''), a = typeof it.amount === 'number' ? Math.round(it.amount * 100) / 100 : bankAmt(it.amount);
+    if (!d || a == null) continue;
+    const r = { p: String(it.payee || ''), k: String(it.type || ''), t: String(it.text || '') };
+    const h = bankHash(d + '|' + a + '|' + r.p.toLowerCase().replace(/\s+/g, ' ').trim());
+    if (have.has(h) || F.tx.some(t => t.d === d && t.a === a && t.p && r.p && r.p.toLowerCase().startsWith(t.p.toLowerCase().slice(0, 6)))) { dup++; continue; }
+    const c = BANK_CATS.some(k => k[0] === it.category) ? it.category : bankCategorize(r, a);
+    F.tx.push({ h, d, a, c, p: bankPayee(r.p, c), k: r.k.replace(/\s+/g, ' ').slice(0, 30) }); have.add(h); n++;
+  }
+  F.tx.sort((p, q) => q.d.localeCompare(p.d)); F.tx = F.tx.slice(0, BANK_MAX);
+  if (n) { F.txImports.unshift({ at: new Date().toISOString(), n, dup, from: '', to: '', src: 'Odi' }); F.txImports = F.txImports.slice(0, 12); }
+  return { label: '🏦 Girokonto: ' + n + ' Umsätze eingetragen' + (dup ? ', ' + dup + ' schon vorhanden' : ''), result: n + ' neu, ' + dup + ' doppelt' };
+}
+const BANK_TOOLS = [{ name: 'add_transactions', description: 'Kontoumsätze des Girokontos eintragen, z. B. aus Screenshots der Sparkassen-App oder einem Kontoauszug. NUR Datum, Betrag, Gegenüber, Buchungsart – KEINE IBAN, Kontonummer, Referenzen oder Verwendungszwecke übergeben. Doppelte werden erkannt.',
+  input_schema: { type: 'object', additionalProperties: false, required: ['items'], properties: { items: { type: 'array', items: { type: 'object', properties: {
+    date: { type: 'string', description: 'JJJJ-MM-TT' }, amount: { type: 'number', description: 'EUR, Ausgaben negativ, Eingänge positiv' }, payee: { type: 'string', description: 'Händler/Firma wie angezeigt; Privatpersonen nur als „Privat“' },
+    type: { type: 'string', description: 'z. B. Kartenzahlung, Lastschrift, Gutschrift' }, category: { type: 'string', enum: BANK_CATS.map(c => c[0]) } } } } } } }];
