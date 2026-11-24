@@ -1,5 +1,6 @@
-/* Lebenshub – Wetter: ein täglicher Claude-Job (Websuche, Abo) schreibt die Vorhersage über die Sammelbox.
-   S.weather = { place, at, tip, days:[{d, tmin, tmax, rain, desc}] } */
+/* Lebenshub – Wetter: ein täglicher Claude-Job (Websuche, Abo) schreibt die Vorhersage über die Sammelbox;
+   beim Öffnen aktualisiert live.js sie über den AccuWeather-Connector (inkl. amtlicher Warnungen).
+   S.weather = { place, at, tip, alert, src, days:[{d, tmin, tmax, rain, desc}] } */
 'use strict';
 function weatherTool(name, x) {
   if (name !== 'set_weather') return null;
@@ -19,7 +20,8 @@ function weatherCard() {
   const t = H.today(), days = W.days.filter(d => d.d >= t).slice(0, 3);
   if (!days.length) return '';
   const stale = W.days[0].d < H.add(t, -1);
-  return `<section class="card wx"><h2>Wetter${W.place ? ' · ' + esc(W.place) : ''}<small>${stale ? 'veraltet' : 'Stand ' + new Date(W.at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}</small></h2>
+  return `<section class="card wx"><h2>Wetter${W.place ? ' · ' + esc(W.place) : ''}<small>${stale ? 'veraltet' : (W.src ? esc(W.src) + ' · ' : '') + new Date(W.at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}${ART.mcp ? ' <button class="chip" data-act="wxLive" title="Live aktualisieren">↻</button>' : ''}</small></h2>
+    ${W.alert ? `<div class="hint warn">⚠️ ${esc(W.alert)}</div>` : ''}
     <div class="wxrow">${days.map(d => `<div class="wxd"><div class="wxn">${d.d === t ? 'Heute' : d.d === H.add(t, 1) ? 'Morgen' : H.WD[H.P(d.d).getUTCDay()]}</div><div class="wxi">${wIcon(d.desc)}</div>
       <div class="wxt">${d.tmax != null ? Math.round(d.tmax) + '°' : '–'}<small>${d.tmin != null ? ' / ' + Math.round(d.tmin) + '°' : ''}</small></div><div class="wxs">${esc(d.desc)}${d.rain != null ? ' · ' + Math.round(d.rain) + ' %' : ''}</div></div>`).join('')}</div>
     ${W.tip ? `<div class="hint">${esc(W.tip)}</div>` : ''}</section>`;

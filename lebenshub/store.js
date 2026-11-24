@@ -68,7 +68,7 @@ async function artInit() {
     } else if (!snap.metadata.fromCache && !isEmpty()) {
       artSaveNow(); // erster Start im Artefakt: lokalen Stand hochladen
     }
-    if (!snap.metadata.fromCache) { const first = !ART.ready; ART.ready = true; clearTimeout(loadTimer); artProcessInbox(); if (first && SPLIT.every(k => artPart.loaded[k])) artSave(); if (first && typeof driveHealthAuto === 'function') setTimeout(driveHealthAuto, 1500); if (first && typeof mailAuto === 'function') setTimeout(mailAuto, 2500); if (first && typeof brainAuto === 'function') setTimeout(brainAuto, 3000); if (first && typeof calAuto === 'function') setTimeout(calAuto, 2000); }
+    if (!snap.metadata.fromCache) { const first = !ART.ready; ART.ready = true; clearTimeout(loadTimer); artProcessInbox(); if (first && SPLIT.every(k => artPart.loaded[k])) artSave(); if (first && typeof driveHealthAuto === 'function') setTimeout(driveHealthAuto, 1500); if (first && typeof mailAuto === 'function') setTimeout(mailAuto, 2500); if (first && typeof brainAuto === 'function') setTimeout(brainAuto, 3000); if (first && typeof calAuto === 'function') setTimeout(calAuto, 2000); if (first && typeof wxAuto === 'function') setTimeout(wxAuto, 3500); if (first && typeof finLiveAuto === 'function') setTimeout(finLiveAuto, 6000); }
     render();
   }, e => { clearTimeout(loadTimer); ART.ready = true; toast('Daten konnten nicht geladen werden (' + e.code + ').'); render(); });
   ART.db.collection('docs').onSnapshot(q => { DOCS = q.docs.map(d => Object.assign({}, d.data(), { id: d.id })); render(); }, () => {});
