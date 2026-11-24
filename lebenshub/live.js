@@ -83,7 +83,7 @@ async function finLive(manual) {
     else { save(); if (manual) toast(fail || 'Keine neuen Kurse gefunden.'); }
   } finally { avBusy = false; }
 }
-function finLiveAuto() { const t = S.settings && S.settings.finLiveAt; if (ART.mcp && fin().positions.some(p => p.qty != null) && (!t || Date.now() - Date.parse(t) > 12 * 36e5)) finLive(false); }
+function finLiveAuto() { const t = S.settings && S.settings.finLiveAt; if (ART.mcp && fin().positions.some(p => p.qty != null) && (!t || Date.now() - Date.parse(t) > 20 * 36e5)) finLive(false); }
 function liveAct(act) {
   if (act === 'wxLive') { wxLive(true); return true; }
   if (act === 'finLive') { finLive(true); return true; }
