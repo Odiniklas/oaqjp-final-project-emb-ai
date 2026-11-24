@@ -210,6 +210,37 @@ async function page(browser, url, seed, extra) {
       ok(errs.filter(e => !/Vorlesen|speech/i.test(e)).length === 0, 'keine JavaScript-Fehler', errs.slice(0, 3));
       await ctx.close();
     }
+    console.log('11) Girokonto: Sparkassen-CSV-Import ohne sensible Daten');
+    {
+      const { p, errs, ctx } = await page(browser, url, FIX);
+      const r = await p.evaluate(async () => {
+        const head = '"Auftragskonto";"Buchungstag";"Valutadatum";"Buchungstext";"Verwendungszweck";"Glaeubiger ID";"Mandatsreferenz";"Kundenreferenz (End-to-End)";"Sammlerreferenz";"Lastschrift Ursprungsbetrag";"Auslagenersatz Ruecklastschrift";"Beguenstigter/Zahlungspflichtiger";"Kontonummer/IBAN";"BIC (SWIFT-Code)";"Betrag";"Waehrung";"Info"';
+        const row = (d, bt, vz, who, iban, amt) => ['DE00TESTKONTO', d, d, bt, vz, 'DE98ZZZ09999999999', 'MANDAT123', '', '', '', '', who, iban, 'TESTDEFFXXX', amt, 'EUR', 'Umsatz gebucht'].map(x => '"' + x + '"').join(';');
+        const csv = [head,
+          row('28.10.26', 'LOHN GEHALT', 'Gehalt Oktober', 'Beispiel Energie GmbH', 'DE11111111111111111111', '3.100,00'),
+          row('02.10.26', 'LASTSCHRIFT', 'Miete Wohnung', 'Hausverwaltung Muster GmbH', 'DE22222222222222222222', '-780,00'),
+          row('02.11.26', 'LASTSCHRIFT', 'Miete Wohnung', 'Hausverwaltung Muster GmbH', 'DE22222222222222222222', '-780,00'),
+          row('05.10.26', 'KARTENZAHLUNG', 'REWE SAGT DANKE 1234', 'REWE Markt GmbH', 'DE33333333333333333333', '-54,20'),
+          row('10.10.26', 'FOLGELASTSCHRIFT', 'Netflix Abo', 'NETFLIX INTERNATIONAL B.V.', 'NL44444444444444444444', '-13,99'),
+          row('10.11.26', 'FOLGELASTSCHRIFT', 'Netflix Abo', 'NETFLIX INTERNATIONAL B.V.', 'NL44444444444444444444', '-13,99'),
+          row('12.10.26', 'ONLINE-UEBERWEISUNG', 'Danke fuers Essen', 'Mustermann, Max', 'DE55555555555555555555', '-25,00'),
+          row('15.10.26', 'DAUERAUFTRAG', 'Sparplan', 'Trade Republic Bank GmbH', 'DE66666666666666666666', '-200,00')].join('\r\n');
+        const buf = new TextEncoder().encode(csv), f = new File([buf], 'umsaetze.csv', { type: 'text/csv' });
+        const n1 = await bankImportFiles([f]), n2 = await bankImportFiles([f]);
+        const json = JSON.stringify(S.fin.tx);
+        TAB = 'money'; render();
+        const st = bankStats('2026-10');
+        return { n1, n2, noIban: !/DE\d{20}|NL\d{20}|MANDAT|DE98ZZZ|TESTKONTO|Gehalt Oktober|Danke fuers/.test(json), privat: S.fin.tx.some(t => t.p === 'Privat') && !/Mustermann/.test(json),
+          cats: Object.fromEntries(S.fin.tx.map(t => [t.p, t.c])), inc: st.inc, save: st.save, rec: bankRecurring().map(x => x.p), card: !!document.querySelector('.bank'), w: document.documentElement.scrollWidth <= innerWidth + 1, ctx: finSnapshotText().includes('Girokonto') };
+      });
+      ok(r.n1 === 8 && r.n2 === 0, 'importiert alle Umsätze, erkennt Doppelimport', r);
+      ok(r.noIban && r.privat, 'speichert keine IBAN, Referenzen, Verwendungszwecke oder Privatnamen', r);
+      ok(r.cats['REWE Markt GmbH'] === 'lebensmittel' && r.cats['Trade Republic Bank GmbH'] === 'sparen' && r.inc === 3100 && r.save === 200, 'Kategorien und Monatswerte stimmen', r);
+      ok(r.rec.some(x => /NETFLIX/.test(x)) && r.rec.some(x => /Hausverwaltung/.test(x)), 'wiederkehrende Abbuchungen erkannt', r.rec);
+      ok(r.card && r.w && r.ctx, 'Girokonto-Karte in Finanzen, kein seitliches Scrollen, Odi sieht die Monatsübersicht', r);
+      ok(errs.length === 0, 'keine JavaScript-Fehler', errs.slice(0, 3));
+      await ctx.close();
+    }
   } finally { await browser.close(); server.close(); }
   console.log(failed ? '\n' + failed + ' Test(s) fehlgeschlagen.' : '\nAlle Tests bestanden.');
   process.exit(failed ? 1 : 0);

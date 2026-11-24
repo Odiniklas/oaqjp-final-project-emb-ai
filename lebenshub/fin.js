@@ -131,7 +131,7 @@ function finSnapshotText() {
   return JSON.stringify({ konten: F.accounts.map(a => [a.name, a.kind, a.cash, a.asOf]), positionen: F.positions.map(p => [(findAcc(p.acc) || {}).name, p.name, p.isin || p.wkn || '', p.qty, p.buy, p.price, p.date, posValue(p) != null ? Math.round(posValue(p)) : null, posPL(p) ? Math.round(posPL(p).rel * 10) / 10 + '%' : '']),
     ziele: (F.goals || []).map(g => [g.name, g.target, g.targetMax, g.date, g.saved]),
     sparplaene: F.plans.map(x => [(findAcc(x.acc) || {}).name, x.name, x.amount, x.every, x.next]),
-    gesamt: Math.round(finTotals().total), verlauf: F.history.slice(-6).map(h => [h.d, Math.round(h.total)]) });
+    gesamt: Math.round(finTotals().total), verlauf: F.history.slice(-6).map(h => [h.d, Math.round(h.total)]) }) + (typeof bankSummaryText === 'function' && bankSummaryText() ? '\nGirokonto: ' + bankSummaryText() : '');
 }
 
 /* ---------- Ansicht (im Stil einer Broker-App) ---------- */
@@ -211,6 +211,7 @@ function finView() {
       ${se ? `<div class="hint">Verlauf ${se.kind === 'pct' ? '' : 'bis ' + H.fdy(se.pts[se.pts.length - 1][0]) + ' '}aus ${esc(se.src || 'Screenshot')}, danach wöchentliche Kurs-Updates.</div>` : ''}
       <div class="btns"><button class="btn ghost" data-act="fpos" data-acc="${a.id}">+ Position</button></div></section>`;
   });
+  out += typeof bankCard === 'function' ? bankCard() : '';
   out += (typeof fpForecast === 'function' ? fpForecast() : '') + (typeof fpGoals === 'function' ? fpGoals() : '') + (typeof fpCheck === 'function' ? fpCheck() : '');
   return out;
 }

@@ -1,7 +1,7 @@
 /* Lebenshub Service Worker: Offline-Betrieb + Erinnerungen im Hintergrund */
 importScripts('sched.js');
-const V = 'lebenshub-shell-v37';
-const ASSETS = ['./', 'index.html', 'styles.css', 'app.js', 'unpack.js', 'docs.js', 'fin.js', 'radar.js', 'finplan.js', 'life.js', 'pension.js', 'know.js', 'tiktok.js', 'prompts_data.js', 'prompts.js', 'research.js', 'work.js', 'projects.js', 'agents.js', 'brain.js', 'health.js', 'mail.js', 'weather.js', 'live.js', 'music.js', 'photos.js', 'cal.js', 'chat.js', 'mind.js', 'voice.js', 'store.js', 'vendor/anthropic-sdk-1.5.0.mjs', 'sched.js', 'manifest.webmanifest', 'icon.svg', 'icon-180.png', 'icon-192.png', 'icon-512.png'];
+const V = 'lebenshub-shell-v38';
+const ASSETS = ['./', 'index.html', 'styles.css', 'app.js', 'unpack.js', 'docs.js', 'fin.js', 'bank.js', 'radar.js', 'finplan.js', 'life.js', 'pension.js', 'know.js', 'tiktok.js', 'prompts_data.js', 'prompts.js', 'research.js', 'work.js', 'projects.js', 'agents.js', 'brain.js', 'health.js', 'mail.js', 'weather.js', 'live.js', 'music.js', 'photos.js', 'cal.js', 'chat.js', 'mind.js', 'voice.js', 'store.js', 'vendor/anthropic-sdk-1.5.0.mjs', 'sched.js', 'manifest.webmanifest', 'icon.svg', 'icon-180.png', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(V).then(c => c.addAll(ASSETS.map(u => new Request(u, { cache: 'reload' })))).then(() => self.skipWaiting()));

@@ -536,6 +536,16 @@ document.addEventListener('keydown', e => { if (e.target.id === 'chatIn' && e.ke
 document.addEventListener('change', async e => {
   if (e.target.id !== 'chatFile' || !e.target.files.length) return;
   const fl = Array.from(e.target.files); e.target.value = '';
+  if (typeof bankImportFiles === 'function') {
+    const csv = fl.filter(bankLooksLike);
+    if (csv.length) {
+      const n = await bankImportFiles(csv);
+      CHAT.push({ role: 'assistant', local: true, at: Date.now(), text: n ? n + ' Kontoumsätze aus ' + csv.map(f => f.name).join(', ') + ' importiert – lokal, ohne IBAN und Verwendungszweck. Auswertung unter Finanzen → Girokonto.' : 'In ' + csv.map(f => f.name).join(', ') + ' habe ich keine neuen Kontoumsätze gefunden.' });
+      saveChat(); render();
+      fl.splice(0, fl.length, ...fl.filter(f => !csv.includes(f)));
+      if (!fl.length) return;
+    }
+  }
   const big = fl.filter(f => /\.(zip|docx|xlsx|pptx)$/i.test(f.name)), rest = fl.filter(f => !big.includes(f));
   if (big.length) {
     const n = await addFiles(big, 'work');
