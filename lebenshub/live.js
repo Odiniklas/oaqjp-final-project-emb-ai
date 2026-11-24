@@ -49,7 +49,7 @@ async function wxLive(manual) {
   } catch (e) { if (manual) toast(liveErr(e, 'AccuWeather')); }
   finally { wxBusy = false; }
 }
-function wxAuto() { const W = S.weather; if (ART.mcp && W && W.place && (!W.at || Date.now() - Date.parse(W.at) > 3 * 36e5)) wxLive(false); }
+function wxAuto() { const W = S.weather; if (ART.mcp && W && W.place && (!W.at || W.src !== 'AccuWeather' || Date.now() - Date.parse(W.at) > 3 * 36e5)) wxLive(false); }
 
 /* ---------- Kurse (Alpha Vantage) ---------- */
 function avPick(r) {
